@@ -56,7 +56,7 @@ export interface DashboardMetrics {
   openPipelineValue: number;
   wonValueThisMonth: number;
   openLeadCount: number;
-  winRate: number; // 0–1, of closed leads
+  activeContacts: number;
   stageCounts: Record<LeadStage, number>;
   sourceCounts: { source: string; count: number }[];
   overdueFollowUps: LeadWithContact[];
@@ -64,13 +64,12 @@ export interface DashboardMetrics {
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
-  const leads = await getLeads();
+  const [leads, contacts] = await Promise.all([getLeads(), getContacts()]);
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const open = leads.filter((l) => l.stage !== "won" && l.stage !== "lost");
   const won = leads.filter((l) => l.stage === "won");
-  const closed = leads.filter((l) => l.stage === "won" || l.stage === "lost");
 
   const stageCounts = Object.fromEntries(
     LEAD_STAGES.map((s) => [s, leads.filter((l) => l.stage === s).length])
@@ -88,7 +87,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
       .filter((l) => l.closedAt && new Date(l.closedAt) >= monthStart)
       .reduce((s, l) => s + (l.value || 0), 0),
     openLeadCount: open.length,
-    winRate: closed.length ? won.length / closed.length : 0,
+    activeContacts: contacts.filter((c) => c.status === "active").length,
     stageCounts,
     sourceCounts: [...sourceMap.entries()]
       .map(([source, count]) => ({ source, count }))

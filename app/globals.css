@@ -9,6 +9,7 @@
   --color-charcoal: #2b2b33;
   --color-mist: #f7f3ec;
   --color-warmgray: #6b6873;
+  --color-smoke: #6b6873; /* alias used by UI copied from the outreach app */
   --color-line: rgba(43, 43, 51, 0.12);
 
   /* Type system */

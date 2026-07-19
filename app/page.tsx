@@ -21,7 +21,7 @@ export default async function DashboardPage() {
         <StatCard label="Open pipeline" value={money(m.openPipelineValue)} />
         <StatCard label="Won this month" value={money(m.wonValueThisMonth)} accent />
         <StatCard label="Open leads" value={String(m.openLeadCount)} />
-        <StatCard label="Win rate" value={`${Math.round(m.winRate * 100)}%`} />
+        <StatCard label="Active contacts" value={String(m.activeContacts)} />
       </div>
 
       <div className="mt-6 grid gap-4 md:gap-6 lg:mt-8 lg:grid-cols-2">

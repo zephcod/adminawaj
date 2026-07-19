@@ -1,4 +1,4 @@
-import { Client, Databases, ID, Query } from "node-appwrite";
+import { Client, Databases, ID, Query, Storage } from "node-appwrite";
 import { env } from "./env";
 import type { Suppression } from "./email-types";
 
@@ -37,6 +37,23 @@ export function db(): Databases {
 }
 
 export const DB = () => env.databaseId();
+
+// ── Storage (email attachments bucket, shared with outreach app) ─
+
+export const ATTACHMENTS_BUCKET = () =>
+  process.env.APPWRITE_ATTACHMENTS_BUCKET_ID ?? "attachments";
+
+let _storage: Storage | null = null;
+
+export function storage(): Storage {
+  if (_storage) return _storage;
+  const client = new Client()
+    .setEndpoint(env.appwriteEndpoint())
+    .setProject(env.appwriteProjectId())
+    .setKey(env.appwriteApiKey());
+  _storage = new Storage(client);
+  return _storage;
+}
 
 // ── Helpers ───────────────────────────────────────────────
 
