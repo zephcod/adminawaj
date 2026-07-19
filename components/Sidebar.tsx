@@ -15,7 +15,7 @@ export default function Sidebar() {
           Awaj<span className="text-gold"> ET</span>
         </div>
         <div className="mt-1 font-mono text-[10px] tracking-[0.18em] text-white/40 uppercase">
-          Mission Control
+          Admin Control
         </div>
       </div>
 

@@ -14,7 +14,7 @@ export default async function DashboardPage() {
       <p className="font-mono text-xs tracking-[0.18em] text-amber uppercase">
         Dashboard
       </p>
-      <h1 className="mt-1 text-2xl font-bold md:text-3xl">Mission status</h1>
+      <h1 className="mt-1 text-2xl font-bold md:text-3xl">Awaj status</h1>
 
       {/* Stat cards */}
       <div className="mt-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:gap-4 lg:mt-8 lg:grid-cols-4">

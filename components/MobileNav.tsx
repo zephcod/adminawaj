@@ -46,7 +46,7 @@ export default function MobileNav() {
                   Awaj<span className="text-gold"> ET</span>
                 </p>
                 <p className="mt-1 font-mono text-[10px] tracking-[0.18em] text-white/40 uppercase">
-                  Mission Control
+                  Admin Control
                 </p>
               </div>
               <Dialog.Close
