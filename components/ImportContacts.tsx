@@ -106,7 +106,7 @@ export default function ImportContacts({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <label className="cursor-pointer rounded-md border border-charcoal/30 px-4 py-2 text-sm font-semibold hover:border-gold hover:text-amber">
+      <label className="cursor-pointer rounded-md border border-edge px-4 py-2 text-sm font-semibold hover:border-gold hover:text-amber">
         {pending ? "Importing…" : "Import CSV"}
         <input
           type="file"
@@ -120,7 +120,7 @@ export default function ImportContacts({
           }}
         />
       </label>
-      {result && <p className="font-mono text-[11px] text-warmgray">{result}</p>}
+      {result && <p className="font-mono text-[11px] text-muted">{result}</p>}
     </div>
   );
 }

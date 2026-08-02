@@ -26,15 +26,15 @@ export default async function DashboardPage() {
 
       <div className="mt-6 grid gap-4 md:gap-6 lg:mt-8 lg:grid-cols-2">
         {/* Pipeline by stage */}
-        <section className="rounded-lg border border-line bg-white p-6">
+        <section className="rounded-lg border border-edge bg-card p-6">
           <h3 className="text-lg font-semibold">Pipeline by stage</h3>
           <div className="mt-5 flex flex-col gap-3">
             {LEAD_STAGES.map((stage) => (
               <div key={stage} className="flex items-center gap-3">
-                <span className="w-24 font-mono text-[11px] tracking-wider text-warmgray uppercase">
+                <span className="w-24 font-mono text-[11px] tracking-wider text-muted uppercase">
                   {STAGE_LABELS[stage]}
                 </span>
-                <div className="h-3 flex-1 overflow-hidden rounded-full bg-mist">
+                <div className="h-3 flex-1 overflow-hidden rounded-full bg-app">
                   <div
                     className={`h-full rounded-full ${
                       stage === "won"
@@ -48,7 +48,7 @@ export default async function DashboardPage() {
                     }}
                   />
                 </div>
-                <span className="w-8 text-right font-mono text-xs text-charcoal">
+                <span className="w-8 text-right font-mono text-xs text-fg">
                   {m.stageCounts[stage]}
                 </span>
               </div>
@@ -57,7 +57,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* Lead sources */}
-        <section className="rounded-lg border border-line bg-white p-6">
+        <section className="rounded-lg border border-edge bg-card p-6">
           <h3 className="text-lg font-semibold">Lead sources</h3>
           {m.sourceCounts.length === 0 ? (
             <Empty text="No leads yet — add your first from the Pipeline page." />
@@ -65,10 +65,10 @@ export default async function DashboardPage() {
             <div className="mt-5 flex flex-col gap-3">
               {m.sourceCounts.map((s) => (
                 <div key={s.source} className="flex items-center gap-3">
-                  <span className="w-24 truncate font-mono text-[11px] tracking-wider text-warmgray uppercase">
+                  <span className="w-24 truncate font-mono text-[11px] tracking-wider text-muted uppercase">
                     {s.source.replace("_", " ")}
                   </span>
-                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-mist">
+                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-app">
                     <div
                       className="h-full rounded-full bg-amber"
                       style={{ width: `${(s.count / maxSource) * 100}%` }}
@@ -82,7 +82,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* Overdue follow-ups */}
-        <section className="rounded-lg border border-line bg-white p-6">
+        <section className="rounded-lg border border-edge bg-card p-6">
           <h3 className="text-lg font-semibold">
             Overdue follow-ups
             {m.overdueFollowUps.length > 0 && (
@@ -94,16 +94,16 @@ export default async function DashboardPage() {
           {m.overdueFollowUps.length === 0 ? (
             <Empty text="Nothing overdue. Clear skies." />
           ) : (
-            <ul className="mt-4 divide-y divide-line">
+            <ul className="mt-4 divide-y divide-edge">
               {m.overdueFollowUps.slice(0, 6).map((l) => (
                 <li key={l.$id}>
                   <Link
                     href={`/leads/${l.$id}`}
-                    className="flex items-center justify-between py-3 hover:bg-mist/60"
+                    className="flex items-center justify-between py-3 hover:bg-app/60"
                   >
                     <div>
                       <p className="text-sm font-medium">{l.title}</p>
-                      <p className="text-xs text-warmgray">{contactName(l.contact)}</p>
+                      <p className="text-xs text-muted">{contactName(l.contact)}</p>
                     </div>
                     <span className="font-mono text-[11px] text-amber">
                       {new Date(l.nextFollowUpAt!).toLocaleDateString()}
@@ -116,28 +116,28 @@ export default async function DashboardPage() {
         </section>
 
         {/* Recent leads */}
-        <section className="rounded-lg border border-line bg-white p-6">
+        <section className="rounded-lg border border-edge bg-card p-6">
           <h3 className="text-lg font-semibold">Recent leads</h3>
           {m.recentLeads.length === 0 ? (
             <Empty text="No leads yet." />
           ) : (
-            <ul className="mt-4 divide-y divide-line">
+            <ul className="mt-4 divide-y divide-edge">
               {m.recentLeads.map((l) => (
                 <li key={l.$id}>
                   <Link
                     href={`/leads/${l.$id}`}
-                    className="flex items-center justify-between py-3 hover:bg-mist/60"
+                    className="flex items-center justify-between py-3 hover:bg-app/60"
                   >
                     <div>
                       <p className="text-sm font-medium">{l.title}</p>
-                      <p className="text-xs text-warmgray">
+                      <p className="text-xs text-muted">
                         {contactName(l.contact)}
                         {l.contact?.company ? ` — ${l.contact.company}` : ""}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="font-mono text-xs">{money(l.value, l.currency)}</p>
-                      <p className="font-mono text-[10px] tracking-wider text-warmgray uppercase">
+                      <p className="font-mono text-[10px] tracking-wider text-muted uppercase">
                         {STAGE_LABELS[l.stage]}
                       </p>
                     </div>
@@ -164,12 +164,12 @@ function StatCard({
   return (
     <div
       className={`rounded-lg border p-5 ${
-        accent ? "border-gold/40 bg-navy text-white" : "border-line bg-white"
+        accent ? "border-gold/40 bg-navy text-white" : "border-edge bg-card"
       }`}
     >
       <p
         className={`font-mono text-[11px] tracking-[0.14em] uppercase ${
-          accent ? "text-gold" : "text-warmgray"
+          accent ? "text-gold" : "text-muted"
         }`}
       >
         {label}
@@ -180,5 +180,5 @@ function StatCard({
 }
 
 function Empty({ text }: { text: string }) {
-  return <p className="mt-4 text-sm text-warmgray">{text}</p>;
+  return <p className="mt-4 text-sm text-muted">{text}</p>;
 }

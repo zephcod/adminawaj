@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/login/actions";
+import { AwajMark } from "@/components/icons/AwajMark";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { isActive, NAV } from "./nav";
 
 export default function Sidebar() {
@@ -11,8 +13,11 @@ export default function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col bg-navy text-white lg:flex">
       <div className="px-6 pt-8 pb-6">
-        <div className="font-display text-xl font-bold tracking-tight">
-          Awaj<span className="text-gold"> ET</span>
+        <div className="flex items-center gap-2">
+          <AwajMark className="h-7 w-7 shrink-0" aria-hidden />
+          <div className="font-display text-xl font-bold tracking-tight">
+            Awaj<span className="text-gold"> ET</span>
+          </div>
         </div>
         <div className="mt-1 font-mono text-[10px] tracking-[0.18em] text-white/40 uppercase">
           Admin Control
@@ -43,15 +48,16 @@ export default function Sidebar() {
         <p className="font-mono text-[10px] leading-relaxed tracking-wider text-white/30 uppercase">
           From pitch to profit
           <br />
-          let Awaj handle 
-          <br />
-          <span className="text-gold/60">the journey.</span>
+          <span className="text-gold/60">Grow with Awajet.</span>
         </p>
-        <form action={logout} className="mt-5">
-          <button className="font-mono text-[10px] tracking-[0.14em] text-white/40 uppercase transition-colors hover:text-amber">
-            ⏻ Sign out
-          </button>
-        </form>
+        <div className="mt-5 flex items-center justify-between">
+          <form action={logout}>
+            <button className="font-mono text-[10px] tracking-[0.14em] text-white/40 uppercase transition-colors hover:text-amber">
+              ⏻ Sign out
+            </button>
+          </form>
+          <ThemeToggle />
+        </div>
       </div>
     </aside>
   );

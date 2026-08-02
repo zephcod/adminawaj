@@ -1,3 +1,4 @@
+import { AwajMark } from "@/components/icons/AwajMark";
 import { login } from "./actions";
 
 export default async function LoginPage({
@@ -11,9 +12,12 @@ export default async function LoginPage({
     <div className="fixed inset-0 flex items-center justify-center bg-navy">
       <div className="w-full max-w-sm px-6">
         <div className="text-center">
-          <p className="font-display text-3xl font-bold text-white">
-            Awaj<span className="text-gold"> ET</span>
-          </p>
+          <div className="flex items-center justify-center gap-3">
+            <AwajMark className="h-10 w-10 shrink-0" aria-hidden />
+            <p className="font-display text-3xl font-bold text-white">
+              Awaj<span className="text-gold"> ET</span>
+            </p>
+          </div>
           <p className="mt-1 font-mono text-[10px] tracking-[0.18em] text-white/40 uppercase">
             Mission Control — Team only
           </p>
@@ -32,7 +36,7 @@ export default async function LoginPage({
               name="password"
               required
               autoFocus
-              className="rounded-md border border-white/15 bg-navy px-3 py-2.5 text-sm text-white focus:outline-2 focus:outline-gold"
+              className="rounded-md border border-white/15 bg-navy px-3 py-2.5 text-sm text-white [color-scheme:dark] focus:outline-2 focus:outline-gold"
             />
           </label>
           {error && (

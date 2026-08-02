@@ -10,8 +10,8 @@ const SENDER_OPTIONS = SENDERS.map((s) => ({
 }));
 
 const inputCls =
-  "w-full min-h-10 rounded-md border border-charcoal/20 px-3 py-2 text-sm focus:border-gold focus:outline-none";
-const labelCls = "mb-1 block text-xs font-medium text-smoke";
+  "w-full min-h-10 rounded-md border border-edge px-3 py-2 text-sm focus:border-gold focus:outline-none";
+const labelCls = "mb-1 block text-xs font-medium text-muted";
 
 const STYLE_OPTIONS = [
   { value: "plain", label: "Plain — personal note (no logo/footer)" },
@@ -96,7 +96,7 @@ export function ComposeForm() {
 
   return (
     <form onSubmit={send} className="max-w-2xl space-y-5">
-      <div className="rounded-lg border border-charcoal/10 bg-white p-4 sm:p-5">
+      <div className="rounded-lg border border-edge bg-card p-4 sm:p-5">
         <div className="grid gap-4">
           <div>
             <label className={labelCls}>Send as</label>
@@ -139,10 +139,10 @@ export function ComposeForm() {
               type="file"
               multiple
               onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-              className="block w-full text-sm text-smoke file:mr-3 file:rounded-md file:border-0 file:bg-gold/15 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-amber hover:file:bg-gold/25"
+              className="block w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-gold/15 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-amber hover:file:bg-gold/25"
             />
             {files.length > 0 && (
-              <ul className="mt-2 space-y-1 text-sm text-smoke">
+              <ul className="mt-2 space-y-1 text-sm text-muted">
                 {files.map((f, i) => (
                   <li key={i} className="flex items-center justify-between gap-2">
                     <span className="truncate">{f.name}</span>

@@ -3,8 +3,27 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { COLLECTIONS, DB, db, ID } from "@/lib/appwrite";
-import { LeadStage, STAGE_LABELS } from "@/lib/domain";
+import {
+  createCompany,
+  createCost,
+  deleteCost,
+  reassignCampaign,
+  setCampaignParent,
+  updateCompany,
+  updateInsight,
+  updateIssue,
+} from "@/lib/data";
+import {
+  COST_CATEGORIES,
+  ISSUE_STATUSES,
+  LeadStage,
+  STAGE_LABELS,
+  type CostCategory,
+  type IssueStatus,
+} from "@/lib/domain";
+import { normalizeAdAccountId } from "@/lib/meta";
 import { notifyImport, notifyNewContact } from "@/lib/notify";
+import { syncAll, syncOne, type CompanySyncResult } from "@/lib/sync";
 
 function revalidateAll() {
   revalidatePath("/");
@@ -75,6 +94,36 @@ export async function updateFollowUp(leadId: string, formData: FormData) {
   revalidatePath(`/leads/${leadId}`);
 }
 
+export async function updateLeadValue(leadId: string, formData: FormData) {
+  await db().updateDocument(DB(), COLLECTIONS.leads, leadId, {
+    value: Number(formData.get("value") || 0),
+    currency: String(formData.get("currency") || "ETB"),
+  });
+  revalidateAll();
+  revalidatePath(`/leads/${leadId}`);
+}
+
+export async function updateLeadScore(leadId: string, formData: FormData) {
+  const raw = String(formData.get("score") || "");
+  const score = raw === "" ? null : Math.max(0, Math.min(100, Number(raw)));
+  await db().updateDocument(DB(), COLLECTIONS.leads, leadId, { score });
+  revalidateAll();
+  revalidatePath(`/leads/${leadId}`);
+}
+
+export async function assignOwner(leadId: string, formData: FormData) {
+  await db().updateDocument(DB(), COLLECTIONS.leads, leadId, {
+    owner: String(formData.get("owner") || "").trim() || null,
+  });
+  revalidateAll();
+  revalidatePath(`/leads/${leadId}`);
+}
+
+export async function deleteLead(leadId: string) {
+  await db().deleteDocument(DB(), COLLECTIONS.leads, leadId);
+  revalidateAll();
+}
+
 export async function markLost(leadId: string, formData: FormData) {
   const lead = await db().getDocument(DB(), COLLECTIONS.leads, leadId);
   await db().updateDocument(DB(), COLLECTIONS.leads, leadId, {
@@ -135,6 +184,11 @@ export async function updateContactTags(contactId: string, tags: string[]) {
     tags: [...new Set(tags.filter(Boolean))],
   });
   revalidatePath("/contacts");
+}
+
+export async function deleteContact(contactId: string) {
+  await db().deleteDocument(DB(), COLLECTIONS.contacts, contactId);
+  revalidateAll();
 }
 
 export async function createContact(formData: FormData) {
@@ -218,4 +272,174 @@ export async function importContacts(
 
   revalidateAll();
   return { imported, skipped };
+}
+
+function str(fd: FormData, key: string): string {
+  return String(fd.get(key) ?? "").trim();
+}
+
+// ── Companies ─────────────────────────────────────────────
+
+export async function addCompany(formData: FormData): Promise<void> {
+  const name = str(formData, "name");
+  const pin = str(formData, "pin");
+  if (!name || !/^\d{4,10}$/.test(pin)) {
+    throw new Error("Name and a 4–10 digit PIN are required");
+  }
+  const adAccount = str(formData, "metaAdAccountId");
+  await createCompany({
+    name,
+    pin,
+    metaAdAccountId: adAccount ? normalizeAdAccountId(adAccount) : undefined,
+    sourceCompany: str(formData, "sourceCompany") || undefined,
+    currency: str(formData, "currency") || "ETB",
+  });
+  revalidatePath("/companies");
+}
+
+export async function saveCompany(formData: FormData): Promise<void> {
+  const id = str(formData, "id");
+  const pin = str(formData, "pin");
+  if (!id) throw new Error("Missing company id");
+  if (pin && !/^\d{4,10}$/.test(pin)) throw new Error("PIN must be 4–10 digits");
+  const adAccount = str(formData, "metaAdAccountId");
+  const multiplier = Number(formData.get("currencyMultiplier"));
+  await updateCompany(id, {
+    name: str(formData, "name") || undefined,
+    ...(pin ? { pin } : {}),
+    metaAdAccountId: adAccount ? normalizeAdAccountId(adAccount) : undefined,
+    fbPageId: str(formData, "fbPageId") || undefined,
+    accountManager: str(formData, "accountManager") || undefined,
+    currency: str(formData, "currency") || "ETB",
+    currencyMultiplier: multiplier > 0 ? multiplier : 250,
+    active: formData.get("active") === "on",
+    notes: str(formData, "notes") || undefined,
+  });
+  revalidatePath("/companies");
+  revalidatePath(`/companies/${id}`);
+}
+
+export async function deleteCompany(id: string): Promise<void> {
+  await db().deleteDocument(DB(), COLLECTIONS.companies, id);
+  revalidatePath("/companies");
+}
+
+export async function saveInsightRow(formData: FormData): Promise<void> {
+  const id = str(formData, "id");
+  const companyId = str(formData, "companyId");
+  if (!id) throw new Error("Missing row id");
+  await updateInsight(id, {
+    spend: Number(formData.get("spend")) || 0,
+    impressions: Number(formData.get("impressions")) || 0,
+    reach: Number(formData.get("reach")) || 0,
+    clicks: Number(formData.get("clicks")) || 0,
+    leads: Number(formData.get("leads")) || 0,
+    calls: Number(formData.get("calls")) || 0,
+    results: Number(formData.get("results")) || 0,
+  });
+  revalidatePath(`/companies/${companyId}`);
+}
+
+// ── Campaign assignments ──────────────────────────────────
+
+/**
+ * Assign a campaign to a company. Historical insight rows move with it,
+ * so both companies' reports stay accurate.
+ */
+export async function assignCampaign(
+  campaignId: string,
+  companyId: string
+): Promise<{ migrated: number }> {
+  const migrated = await reassignCampaign(campaignId, companyId);
+  revalidatePath("/campaigns");
+  revalidatePath("/companies");
+  return { migrated };
+}
+
+/** Edit a campaign's parent group from the company manage page. */
+export async function saveCampaignDetails(formData: FormData): Promise<void> {
+  const id = str(formData, "id");
+  const companyId = str(formData, "companyId");
+  if (!id) throw new Error("Missing campaign id");
+  await setCampaignParent(
+    id,
+    str(formData, "parentCampaign").slice(0, 256) || null
+  );
+  revalidatePath(`/companies/${companyId}`);
+  revalidatePath("/campaigns");
+}
+
+/** Set or clear a campaign's parent-campaign group. */
+export async function saveCampaignParent(
+  campaignId: string,
+  parent: string
+): Promise<void> {
+  const trimmed = parent.trim().slice(0, 256);
+  await setCampaignParent(campaignId, trimmed || null);
+  revalidatePath("/campaigns");
+}
+
+// ── Additional costs ──────────────────────────────────────
+
+export async function addCost(formData: FormData): Promise<void> {
+  const companyId = str(formData, "companyId");
+  const metaCampaignId = str(formData, "metaCampaignId");
+  const category = str(formData, "category");
+  const amount = Number(formData.get("amount"));
+  const date = str(formData, "date");
+  if (!companyId || !metaCampaignId) throw new Error("Pick a campaign");
+  if (!COST_CATEGORIES.includes(category as CostCategory)) {
+    throw new Error("Invalid category");
+  }
+  if (!(amount > 0)) throw new Error("Amount must be greater than 0");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Invalid date");
+  await createCost({
+    companyId,
+    metaCampaignId,
+    category: category as CostCategory,
+    description: str(formData, "description").slice(0, 512) || undefined,
+    amount,
+    date,
+  });
+  revalidatePath(`/companies/${companyId}`);
+}
+
+export async function removeCost(formData: FormData): Promise<void> {
+  const id = str(formData, "id");
+  const companyId = str(formData, "companyId");
+  if (!id) throw new Error("Missing cost id");
+  await deleteCost(id);
+  revalidatePath(`/companies/${companyId}`);
+}
+
+// ── Issues ────────────────────────────────────────────────
+
+export async function setIssueStatus(
+  issueId: string,
+  status: string
+): Promise<void> {
+  if (!ISSUE_STATUSES.includes(status as IssueStatus)) {
+    throw new Error("Invalid status");
+  }
+  await updateIssue(issueId, { status: status as IssueStatus });
+  revalidatePath("/issues");
+}
+
+export async function replyToIssue(formData: FormData): Promise<void> {
+  const id = str(formData, "id");
+  const response = str(formData, "response");
+  if (!id) throw new Error("Missing issue id");
+  await updateIssue(id, { response: response.slice(0, 4096) });
+  revalidatePath("/issues");
+}
+
+// ── Sync ──────────────────────────────────────────────────
+
+export async function runSync(companyId?: string): Promise<CompanySyncResult[]> {
+  const results = companyId ? [await syncOne(companyId)] : await syncAll();
+  revalidatePath("/companies");
+  if (companyId) {
+    revalidatePath(`/companies/${companyId}`);
+  }
+  return results;
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
 import { sortTags, tagChipClass } from "@/lib/tags";
 import EditContactForm from "./EditContactForm";
 import TagEditor from "./TagEditor";
@@ -21,21 +22,24 @@ interface Row {
 
 const STATUS_STYLES: Record<string, string> = {
   active: "bg-gold/15 text-amber",
-  unsubscribed: "bg-charcoal/10 text-warmgray",
-  bounced: "bg-charcoal/10 text-warmgray",
-  complained: "bg-charcoal/10 text-warmgray",
+  unsubscribed: "bg-fg/10 text-muted",
+  bounced: "bg-fg/10 text-muted",
+  complained: "bg-fg/10 text-muted",
 };
 
 export default function ContactsTable({
   contacts,
   updateTags,
   updateContact,
+  deleteContact,
 }: {
   contacts: Row[];
   updateTags: (contactId: string, tags: string[]) => Promise<void>;
   updateContact: (contactId: string, formData: FormData) => Promise<void>;
+  deleteContact: (contactId: string) => Promise<void>;
 }) {
   const [q, setQ] = useState("");
+  const [isDeleting, startDelete] = useTransition();
   const [source, setSource] = useState("all");
   const [status, setStatus] = useState("all");
   const [activeTags, setActiveTags] = useState<string[]>([]);
@@ -72,18 +76,18 @@ export default function ContactsTable({
   }, [contacts, q, source, status, activeTags]);
 
   return (
-    <div className="rounded-lg border border-line bg-white">
-      <div className="flex flex-wrap gap-3 border-b border-line p-3 md:p-4">
+    <div className="rounded-lg border border-edge bg-card">
+      <div className="flex flex-wrap gap-3 border-b border-edge p-3 md:p-4">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search name, email, company…"
-          className="w-full rounded-md border border-line px-3 py-2 text-sm focus:outline-2 focus:outline-gold sm:w-64"
+          className="w-full rounded-md border border-edge px-3 py-2 text-sm focus:outline-2 focus:outline-gold sm:w-64"
         />
         <select
           value={source}
           onChange={(e) => setSource(e.target.value)}
-          className="rounded-md border border-line px-2 py-2 text-sm"
+          className="rounded-md border border-edge px-2 py-2 text-sm"
         >
           {sources.map((s) => (
             <option key={s} value={s}>
@@ -94,7 +98,7 @@ export default function ContactsTable({
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="rounded-md border border-line px-2 py-2 text-sm"
+          className="rounded-md border border-edge px-2 py-2 text-sm"
         >
           <option value="all">All statuses</option>
           <option value="active">Active</option>
@@ -102,14 +106,14 @@ export default function ContactsTable({
           <option value="bounced">Bounced</option>
           <option value="complained">Complained</option>
         </select>
-        <span className="ml-auto self-center font-mono text-xs text-warmgray">
+        <span className="ml-auto self-center font-mono text-xs text-muted">
           {filtered.length} shown
         </span>
       </div>
 
       {allTags.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-3 py-2.5 md:px-4">
-          <span className="mr-1 font-mono text-[10px] tracking-[0.12em] text-warmgray uppercase">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-edge px-3 py-2.5 md:px-4">
+          <span className="mr-1 font-mono text-[10px] tracking-[0.12em] text-muted uppercase">
             Segments
           </span>
           {allTags.map((t) => {
@@ -123,7 +127,7 @@ export default function ContactsTable({
                     ? "ring-2 ring-gold"
                     : activeTags.length
                       ? "opacity-40 hover:opacity-100"
-                      : "hover:ring-1 hover:ring-line"
+                      : "hover:ring-1 hover:ring-edge"
                 }`}
               >
                 {t}
@@ -144,12 +148,12 @@ export default function ContactsTable({
       <div className="overflow-x-auto">
       <table className="w-full min-w-[920px] text-left text-sm">
         <thead>
-          <tr className="border-b-2 border-charcoal">
+          <tr className="border-b-2 border-edge">
             {["Name", "Email", "Company", "Phone", "Tags", "Source", "Status", ""].map(
               (h) => (
                 <th
                   key={h}
-                  className="px-4 py-2.5 font-mono text-[10px] tracking-[0.12em] text-warmgray uppercase"
+                  className="px-4 py-2.5 font-mono text-[10px] tracking-[0.12em] text-muted uppercase"
                 >
                   {h}
                 </th>
@@ -159,9 +163,9 @@ export default function ContactsTable({
         </thead>
         <tbody>
           {filtered.map((c) => (
-            <tr key={c.id} className="border-b border-line last:border-0 hover:bg-mist/50">
+            <tr key={c.id} className="border-b border-edge last:border-0 hover:bg-app/50">
               <td className="px-4 py-3 font-medium">{c.name}</td>
-              <td className="px-4 py-3 text-warmgray">{c.email}</td>
+              <td className="px-4 py-3 text-muted">{c.email}</td>
               <td className="px-4 py-3">{c.company || "—"}</td>
               <td className="px-4 py-3 font-mono text-xs">{c.phone || "—"}</td>
               <td className="px-4 py-3">
@@ -183,27 +187,40 @@ export default function ContactsTable({
                 </div>
               </td>
               <td className="px-4 py-3">
-                <span className="font-mono text-[10px] tracking-wider text-warmgray uppercase">
+                <span className="font-mono text-[10px] tracking-wider text-muted uppercase">
                   {c.source.replace("_", " ")}
                 </span>
               </td>
               <td className="px-4 py-3">
                 <span
                   className={`rounded-full px-2 py-0.5 font-mono text-[10px] tracking-wider uppercase ${
-                    STATUS_STYLES[c.status] ?? "bg-charcoal/10 text-warmgray"
+                    STATUS_STYLES[c.status] ?? "bg-fg/10 text-muted"
                   }`}
                 >
                   {c.status}
                 </span>
               </td>
               <td className="px-4 py-3 text-right">
-                <EditContactForm contact={c} updateContact={updateContact} />
+                <div className="flex items-center justify-end gap-2">
+                  <EditContactForm contact={c} updateContact={updateContact} />
+                  <button
+                    aria-label={`Delete ${c.name || c.email}`}
+                    disabled={isDeleting}
+                    onClick={() => {
+                      if (!confirm(`Delete ${c.name || c.email}? This can't be undone.`)) return;
+                      startDelete(() => deleteContact(c.id));
+                    }}
+                    className="rounded-md bg-red-600 p-1.5 text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
           {filtered.length === 0 && (
             <tr>
-              <td colSpan={8} className="px-4 py-10 text-center text-warmgray">
+              <td colSpan={8} className="px-4 py-10 text-center text-muted">
                 No contacts match.
               </td>
             </tr>

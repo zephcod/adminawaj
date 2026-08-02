@@ -18,9 +18,17 @@ export const COLLECTIONS = {
   sends: "sends",
   suppressions: "suppressions",
   warmup: "warmup_state",
-  // ── Lead management (new) ──
+  // ── Lead management ──
   leads: "leads",
   activities: "activities",
+  // ── Campaign reporting (shared with the reports app) ──
+  // Note: "reportCampaigns" is a distinct Meta ad campaign, unrelated to
+  // the email-outreach "campaigns" collection above.
+  companies: "companies",
+  reportCampaigns: "report_campaigns",
+  insights: "insights_daily",
+  issues: "report_issues",
+  costs: "campaign_costs",
 } as const;
 
 let _db: Databases | null = null;
@@ -55,17 +63,64 @@ export function storage(): Storage {
   return _storage;
 }
 
+// ── Transient-error retry ─────────────────────────────────
+//
+// Appwrite Cloud sits behind a CDN edge that occasionally returns
+// "503 first byte timeout" (or 429/5xx) under bursts of sequential
+// requests — exactly what a Meta sync produces. Retry those with
+// exponential backoff + jitter instead of failing the whole request.
+
+const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
+
+function isRetryable(e: unknown): boolean {
+  const err = e as { code?: number; message?: string };
+  if (typeof err.code === "number" && RETRYABLE.has(err.code)) return true;
+  // Network-level failures (no HTTP code) are also worth retrying.
+  return /fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|first byte timeout/i.test(
+    err.message ?? ""
+  );
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  attempts = 5
+): Promise<T> {
+  let delay = 500;
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i >= attempts - 1 || !isRetryable(e)) throw e;
+      await sleep(delay + Math.random() * 250);
+      delay = Math.min(delay * 2, 8000);
+    }
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────
 
 export async function listAll<T>(
   collectionId: string,
   queries: string[] = []
 ): Promise<T[]> {
-  const res = await db().listDocuments(DB(), collectionId, [
-    Query.limit(500),
-    ...queries,
-  ]);
-  return res.documents as unknown as T[];
+  const out: T[] = [];
+  let cursor: string | undefined;
+  // Page through in batches of 500.
+  for (;;) {
+    const page = await withRetry(() =>
+      db().listDocuments(DB(), collectionId, [
+        Query.limit(500),
+        ...(cursor ? [Query.cursorAfter(cursor)] : []),
+        ...queries,
+      ])
+    );
+    out.push(...(page.documents as unknown as T[]));
+    if (page.documents.length < 500) break;
+    cursor = page.documents[page.documents.length - 1].$id;
+  }
+  return out;
 }
 
 export async function isSuppressed(email: string): Promise<boolean> {

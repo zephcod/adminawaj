@@ -1,10 +1,13 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
+import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { logout } from "@/app/login/actions";
+import { AwajMark } from "@/components/icons/AwajMark";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { isActive, NAV } from "./nav";
 
 export default function MobileNav() {
@@ -22,14 +25,7 @@ export default function MobileNav() {
           aria-label="Open menu"
           className="rounded-md p-2 text-white/80 hover:bg-white/10 hover:text-white"
         >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-            <path
-              d="M3 5h14M3 10h14M3 15h14"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            />
-          </svg>
+          <Menu className="h-5 w-5" aria-hidden />
         </Dialog.Trigger>
 
         <Dialog.Portal>
@@ -42,9 +38,12 @@ export default function MobileNav() {
 
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-display text-xl font-bold">
-                  Awaj<span className="text-gold"> ET</span>
-                </p>
+                <div className="flex items-center gap-2">
+                  <AwajMark className="h-6 w-6 shrink-0" aria-hidden />
+                  <p className="font-display text-xl font-bold">
+                    Awaj<span className="text-gold"> ET</span>
+                  </p>
+                </div>
                 <p className="mt-1 font-mono text-[10px] tracking-[0.18em] text-white/40 uppercase">
                   Admin Control
                 </p>
@@ -53,14 +52,7 @@ export default function MobileNav() {
                 aria-label="Close menu"
                 className="rounded-md p-2 text-white/60 hover:bg-white/10 hover:text-white"
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-                  <path
-                    d="M3 3l10 10M13 3L3 13"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <X className="h-4 w-4" aria-hidden />
               </Dialog.Close>
             </div>
 
@@ -83,15 +75,22 @@ export default function MobileNav() {
               ))}
             </nav>
 
-            <form action={logout} className="mt-auto">
-              <button className="font-mono text-[11px] tracking-[0.14em] text-white/40 uppercase transition-colors hover:text-amber">
-                ⏻ Sign out
-              </button>
-            </form>
+            <div className="mt-auto flex items-center justify-between">
+              <form action={logout}>
+                <button className="font-mono text-[11px] tracking-[0.14em] text-white/40 uppercase transition-colors hover:text-amber">
+                  ⏻ Sign out
+                </button>
+              </form>
+              <ThemeToggle />
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <Link href="/" className="font-display text-lg font-bold text-white">
+      <Link
+        href="/"
+        className="flex items-center gap-1.5 font-display text-lg font-bold text-white"
+      >
+        <AwajMark className="h-6 w-6 shrink-0" aria-hidden />
         Awaj<span className="text-gold"> ET</span>
       </Link>
     </header>

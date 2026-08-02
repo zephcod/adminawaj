@@ -10,10 +10,10 @@
 export const TAG_PREFIXES: Record<string, { label: string; chip: string }> = {
   ind: { label: "Industry", chip: "bg-navy text-white" },
   svc: { label: "Service interest", chip: "bg-gold/15 text-amber" },
-  size: { label: "Company size", chip: "bg-charcoal/10 text-charcoal" },
+  size: { label: "Company size", chip: "bg-fg/10 text-fg" },
   tier: { label: "Tier", chip: "bg-gold text-navy" },
   rel: { label: "Relationship", chip: "bg-amber/15 text-amber" },
-  loc: { label: "Location", chip: "bg-white text-charcoal border border-line" },
+  loc: { label: "Location", chip: "bg-card text-fg border border-edge" },
   lang: { label: "Language", chip: "bg-charcoal text-mist" },
 };
 
@@ -27,7 +27,7 @@ export function tagPrefix(tag: string): string {
 export function tagChipClass(tag: string): string {
   return (
     TAG_PREFIXES[tagPrefix(tag)]?.chip ??
-    "bg-charcoal/5 text-warmgray border border-line"
+    "bg-fg/5 text-muted border border-edge"
   );
 }
 

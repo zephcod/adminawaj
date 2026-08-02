@@ -4,7 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useState } from "react";
 
 const inputCls =
-  "w-full rounded-md border border-charcoal/20 bg-white px-2.5 py-2 text-sm focus:outline-2 focus:outline-gold";
+  "w-full rounded-md border border-edge bg-input px-2.5 py-2 text-sm focus:outline-2 focus:outline-gold";
 
 export interface EditableContact {
   id: string;
@@ -31,21 +31,21 @@ export default function EditContactForm({
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger
         aria-label={`Edit ${contact.firstName}`}
-        className="rounded-md border border-line px-2.5 py-1 font-mono text-[11px] text-warmgray transition-colors hover:border-gold hover:text-amber"
+        className="rounded-md border border-edge px-2.5 py-1 font-mono text-[11px] text-muted transition-colors hover:border-gold hover:text-amber"
       >
         Edit
       </Dialog.Trigger>
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-navy/60 backdrop-blur-sm" />
-        <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[92dvh] overflow-y-auto rounded-t-xl bg-white p-5 shadow-xl outline-none sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6">
+        <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[92dvh] overflow-y-auto rounded-t-xl bg-card p-5 shadow-xl outline-none sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6">
           <div className="flex items-start justify-between">
             <Dialog.Title className="text-xl font-semibold">
               Edit contact
             </Dialog.Title>
             <Dialog.Close
               aria-label="Close"
-              className="rounded-md p-1.5 text-warmgray hover:bg-mist hover:text-charcoal"
+              className="rounded-md p-1.5 text-muted hover:bg-app hover:text-fg"
             >
               ✕
             </Dialog.Close>
@@ -134,7 +134,7 @@ export default function EditContactForm({
             </Field>
 
             <div className="mt-2 flex justify-end gap-3">
-              <Dialog.Close className="rounded-md px-4 py-2 text-sm text-warmgray hover:text-charcoal">
+              <Dialog.Close className="rounded-md px-4 py-2 text-sm text-muted hover:text-fg">
                 Cancel
               </Dialog.Close>
               <button
@@ -154,7 +154,7 @@ export default function EditContactForm({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="font-mono text-[11px] tracking-[0.12em] text-warmgray uppercase">
+      <span className="font-mono text-[11px] tracking-[0.12em] text-muted uppercase">
         {label}
       </span>
       {children}

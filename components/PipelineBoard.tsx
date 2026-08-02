@@ -49,18 +49,18 @@ export default function PipelineBoard({ leads }: { leads: LeadWithContact[] }) {
             key={stage}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => onDrop(e, stage)}
-            className={`flex min-h-[50vh] w-60 shrink-0 snap-start flex-col rounded-lg border border-line border-t-4 bg-white/60 md:min-h-[60vh] xl:w-auto xl:flex-1 ${STAGE_ACCENT[stage]}`}
+            className={`flex min-h-[50vh] w-60 shrink-0 snap-start flex-col rounded-lg border border-edge border-t-4 bg-card/60 md:min-h-[60vh] xl:w-auto xl:flex-1 ${STAGE_ACCENT[stage]}`}
           >
             <div className="px-3 pt-3 pb-2">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[11px] font-medium tracking-[0.12em] uppercase">
                   {STAGE_LABELS[stage]}
                 </span>
-                <span className="rounded-full bg-mist px-2 font-mono text-[11px] text-warmgray">
+                <span className="rounded-full bg-app px-2 font-mono text-[11px] text-muted">
                   {items.length}
                 </span>
               </div>
-              <p className="mt-1 font-mono text-[10px] text-warmgray">
+              <p className="mt-1 font-mono text-[10px] text-muted">
                 {money(total)}
               </p>
             </div>
@@ -74,12 +74,12 @@ export default function PipelineBoard({ leads }: { leads: LeadWithContact[] }) {
                   onDragStart={(e) =>
                     e.dataTransfer.setData("text/lead-id", lead.$id)
                   }
-                  className="cursor-grab rounded-md border border-line bg-white p-3 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing"
+                  className="cursor-grab rounded-md border border-edge bg-card p-3 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing"
                 >
                   <p className="text-[13px] leading-snug font-semibold">
                     {lead.title}
                   </p>
-                  <p className="mt-1 text-[12px] text-warmgray">
+                  <p className="mt-1 text-[12px] text-muted">
                     {contactName(lead.contact)}
                     {lead.contact?.company ? ` · ${lead.contact.company}` : ""}
                   </p>
@@ -98,7 +98,7 @@ export default function PipelineBoard({ leads }: { leads: LeadWithContact[] }) {
                       className={`mt-1.5 font-mono text-[10px] ${
                         new Date(lead.nextFollowUpAt) < new Date()
                           ? "text-amber"
-                          : "text-warmgray"
+                          : "text-muted"
                       }`}
                     >
                       ↳ {new Date(lead.nextFollowUpAt).toLocaleDateString()}

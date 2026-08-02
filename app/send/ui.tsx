@@ -17,8 +17,8 @@ interface TemplateOption {
 }
 
 const inputCls =
-  "w-full rounded-md border border-charcoal/20 px-3 py-2 text-sm focus:border-gold focus:outline-none";
-const labelCls = "mb-1 block text-xs font-medium text-smoke";
+  "w-full rounded-md border border-edge px-3 py-2 text-sm focus:border-gold focus:outline-none";
+const labelCls = "mb-1 block text-xs font-medium text-muted";
 
 /** Which var fields matter per template category/key. */
 function fieldsFor(key: string, category: string): string[] {
@@ -84,17 +84,17 @@ export function ManualSendForm({ templates }: { templates: TemplateOption[] }) {
 
   return (
     <form onSubmit={send} className="max-w-2xl space-y-5">
-      <div className="rounded-lg border border-charcoal/10 bg-white p-5">
+      <div className="rounded-lg border border-edge bg-card p-5">
         <label className={labelCls}>Template</label>
         <Select
           value={templateKey}
           onValueChange={pickTemplate}
           options={templates.map((t) => ({ value: t.key, label: `${t.key} · ${t.category}` }))}
         />
-        {selected && <p className="mt-2 text-xs text-smoke">{selected.description}</p>}
+        {selected && <p className="mt-2 text-xs text-muted">{selected.description}</p>}
       </div>
 
-      <div className="rounded-lg border border-charcoal/10 bg-white p-5">
+      <div className="rounded-lg border border-edge bg-card p-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className={labelCls}>Send as</label>

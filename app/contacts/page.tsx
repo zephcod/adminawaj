@@ -1,5 +1,6 @@
 import {
   createContact,
+  deleteContact,
   importContacts,
   updateContact,
   updateContactTags,
@@ -22,7 +23,7 @@ export default async function ContactsPage() {
             Contacts
           </p>
           <h1 className="mt-1 text-2xl font-bold md:text-3xl">All Awaj Contacts</h1>
-          <p className="mt-1 text-sm text-warmgray">
+          <p className="mt-1 text-sm text-muted">
             Shared with the email outreach system — {contacts.length} contact
             {contacts.length === 1 ? "" : "s"}.
           </p>
@@ -37,6 +38,7 @@ export default async function ContactsPage() {
         <ContactsTable
           updateTags={updateContactTags}
           updateContact={updateContact}
+          deleteContact={deleteContact}
           contacts={contacts.map((c) => ({
             id: c.$id,
             name: [c.firstName, c.lastName].filter(Boolean).join(" "),

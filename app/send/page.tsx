@@ -17,7 +17,7 @@ export default function SendPage() {
         Send
       </p>
       <h1 className="mt-1 text-2xl font-bold md:text-3xl">Awaj Email</h1>
-      <p className="mt-2 mb-6 max-w-2xl text-sm text-smoke">
+      <p className="mt-2 mb-6 max-w-2xl text-sm text-muted">
         One-off manual sends — from a template, or compose free text with attachments. Both go
         through the same pipeline as the outreach app: suppression check, send logging, and
         unsubscribe headers all apply.

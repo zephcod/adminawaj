@@ -13,6 +13,8 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Protect everything except the login page and static assets
-  matcher: ["/((?!login|_next/static|_next/image|favicon.ico).*)"],
+  // Protect everything except the login page, static assets, and the Meta
+  // sync cron endpoint (Bearer CRON_SECRET-authed, called by Vercel Cron
+  // with no session cookie — see app/api/sync/route.ts).
+  matcher: ["/((?!login|api/sync|_next/static|_next/image|favicon.ico).*)"],
 };
