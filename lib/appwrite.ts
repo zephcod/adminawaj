@@ -29,6 +29,7 @@ export const COLLECTIONS = {
   insights: "insights_daily",
   issues: "report_issues",
   costs: "campaign_costs",
+  deposits: "company_deposits",
 } as const;
 
 let _db: Databases | null = null;

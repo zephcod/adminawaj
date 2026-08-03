@@ -8,7 +8,9 @@
     "start": "next start",
     "db:setup": "tsx scripts/setup-db.ts",
     "db:add-lead-score": "tsx scripts/add-lead-score.ts",
-    "db:setup-companies": "tsx scripts/setup-companies-db.ts"
+    "db:setup-companies": "tsx scripts/setup-companies-db.ts",
+    "db:setup-deposits": "tsx scripts/setup-deposits-db.ts",
+    "db:update-costs-parent-group": "tsx scripts/update-costs-parent-group.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.14",

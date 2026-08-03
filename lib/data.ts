@@ -3,6 +3,7 @@ import {
   Activity,
   CampaignCost,
   Company,
+  CompanyDeposit,
   Contact,
   CostCategory,
   InsightDaily,
@@ -265,6 +266,13 @@ export async function getInsights(
   ]);
 }
 
+/** All-time insight rows for a company, no date bounds — used for lifetime ad-spend totals. */
+export async function getAllInsights(companyId: string): Promise<InsightDaily[]> {
+  return listAll<InsightDaily>(COLLECTIONS.insights, [
+    Query.equal("companyId", companyId),
+  ]);
+}
+
 export async function getInsight(id: string): Promise<InsightDaily | null> {
   try {
     return (await db().getDocument(
@@ -362,7 +370,7 @@ export async function getCosts(
 
 export async function createCost(data: {
   companyId: string;
-  metaCampaignId: string;
+  parentCampaign?: string;
   category: CostCategory;
   description?: string;
   amount: number;
@@ -375,6 +383,37 @@ export async function createCost(data: {
 
 export async function deleteCost(id: string): Promise<void> {
   await withRetry(() => db().deleteDocument(DB(), COLLECTIONS.costs, id));
+}
+
+// ── Deposits (account-balance ledger, per parent-campaign group) ──
+
+export async function getDeposits(
+  companyId: string,
+  since?: string,
+  until?: string
+): Promise<CompanyDeposit[]> {
+  return listAll<CompanyDeposit>(COLLECTIONS.deposits, [
+    Query.equal("companyId", companyId),
+    ...(since ? [Query.greaterThanEqual("date", since)] : []),
+    ...(until ? [Query.lessThanEqual("date", until)] : []),
+    Query.orderDesc("date"),
+  ]);
+}
+
+export async function createDeposit(data: {
+  companyId: string;
+  parentCampaign?: string;
+  amount: number;
+  date: string;
+  note?: string;
+}): Promise<CompanyDeposit> {
+  return (await withRetry(() =>
+    db().createDocument(DB(), COLLECTIONS.deposits, ID.unique(), data)
+  )) as unknown as CompanyDeposit;
+}
+
+export async function deleteDeposit(id: string): Promise<void> {
+  await withRetry(() => db().deleteDocument(DB(), COLLECTIONS.deposits, id));
 }
 
 // ── Issues ────────────────────────────────────────────────

@@ -2,11 +2,20 @@ import Link from "next/link";
 import NewCompanyDialog from "@/components/NewCompanyDialog";
 import SyncButton from "@/components/SyncButton";
 import { getCompanies } from "@/lib/data";
+import { money } from "@/lib/domain";
+import { computeCompanyBalance } from "@/lib/statement";
 
 export const dynamic = "force-dynamic";
 
 export default async function CompaniesPage() {
   const companies = await getCompanies();
+  const balances = new Map(
+    await Promise.all(
+      companies.map(
+        async (c) => [c.$id, await computeCompanyBalance(c.$id)] as const
+      )
+    )
+  );
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -26,7 +35,7 @@ export default async function CompaniesPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-edge text-left text-xs tracking-wide text-muted uppercase">
-              {["Company", "PIN", "Meta ad account", "Status", ""].map((h) => (
+              {["Company", "PIN", "Account balance", "Status", ""].map((h) => (
                 <th key={h} className="px-4 py-3 font-medium sm:px-6">
                   {h}
                 </th>
@@ -49,8 +58,14 @@ export default async function CompaniesPage() {
               <tr key={c.$id} className="border-b border-edge/60 last:border-0">
                 <td className="px-4 py-3 font-medium sm:px-6">{c.name}</td>
                 <td className="px-4 py-3 font-mono sm:px-6">{c.pin}</td>
-                <td className="px-4 py-3 font-mono text-xs sm:px-6">
-                  {c.metaAdAccountId || "—"}
+                <td
+                  className={`px-4 py-3 font-mono text-xs sm:px-6 ${
+                    (balances.get(c.$id)?.total ?? 0) >= 0
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }`}
+                >
+                  {money(balances.get(c.$id)?.total ?? 0, c.currency)}
                 </td>
                 <td className="px-4 py-3 sm:px-6">
                   <span
@@ -74,9 +89,16 @@ export default async function CompaniesPage() {
                       </span>
                     )}
                     <Link
+                      href={`/companies/${c.$id}/statement`}
+                      title="View campaign statement"
+                      className="rounded-md border border-edge px-2.5 py-1 text-xs font-medium text-fg transition hover:border-gold hover:text-amber"
+                    >
+                      Report
+                    </Link>
+                    <Link
                       href={`/companies/${c.$id}`}
                       title="Manage company settings"
-                      className="rounded-md bg-navy px-2.5 py-1 text-xs font-medium text-white transition hover:bg-charcoal"
+                      className="rounded-md bg-amber-400 px-2.5 py-1 text-xs font-medium text-gray-900 transition hover:bg-charcoal"
                     >
                       Manage
                     </Link>

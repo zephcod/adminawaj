@@ -196,15 +196,22 @@ export const COST_CATEGORY_LABELS: Record<CostCategory, string> = {
 };
 
 /**
- * Agency-side cost recorded against a campaign (creative production,
- * strategy overhead, consultation, …). Amounts are entered in the
- * company's report currency — the currency multiplier does NOT apply.
+ * Agency-side cost recorded against a company's parent-campaign group
+ * (creative production, strategy overhead, consultation, …). Amounts are
+ * entered in the company's report currency — the currency multiplier does
+ * NOT apply. Grouped directly by `parentCampaign` (empty/unset = "Other
+ * campaigns"), same as deposits — `metaCampaignId` is legacy, kept optional
+ * only so pre-existing per-campaign cost rows still resolve to a group via
+ * a campaign lookup.
  */
 export interface CampaignCost {
   $id: string;
   $createdAt: string;
   companyId: string;
-  metaCampaignId: string;
+  /** Legacy: costs used to be tied to one specific campaign. */
+  metaCampaignId?: string;
+  /** Parent-campaign group this cost is charged against; empty = "Other campaigns". */
+  parentCampaign?: string;
   category: CostCategory;
   description?: string;
   amount: number;
@@ -249,4 +256,81 @@ export function rangeToDates(key: string): { since: string; until: string } {
   since.setDate(until.getDate() - (preset.days - 1));
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   return { since: fmt(since), until: fmt(until) };
+}
+
+// ── Statement/invoice aggregates (client statement feature) ──
+
+export interface MetricTotals {
+  spend: number;
+  impressions: number;
+  reach: number;
+  clicks: number;
+  leads: number;
+  calls: number;
+  /** Total results = leads + calls. */
+  results: number;
+  ctr: number; // %
+  cpc: number;
+  cpl: number;
+  /** Cost per call placed. */
+  costPerCall: number;
+  /** Cost per result = spend / (leads + calls). */
+  cpr: number;
+}
+
+export function computeTotals(rows: InsightDaily[]): MetricTotals {
+  const t = rows.reduce(
+    (acc, r) => {
+      acc.spend += r.spend;
+      acc.impressions += r.impressions;
+      acc.reach += r.reach;
+      acc.clicks += r.clicks;
+      acc.leads += r.leads;
+      acc.calls += r.calls ?? 0;
+      // Fall back to leads + calls for rows synced before `results` existed.
+      acc.results += r.results ?? r.leads + (r.calls ?? 0);
+      return acc;
+    },
+    { spend: 0, impressions: 0, reach: 0, clicks: 0, leads: 0, calls: 0, results: 0 }
+  );
+  const results = t.results;
+  return {
+    ...t,
+    results,
+    ctr: t.impressions ? (t.clicks / t.impressions) * 100 : 0,
+    cpc: t.clicks ? t.spend / t.clicks : 0,
+    cpl: t.leads ? t.spend / t.leads : 0,
+    costPerCall: t.calls ? t.spend / t.calls : 0,
+    cpr: results ? t.spend / results : 0,
+  };
+}
+
+// ── Ethiopian tax rules for statements ──
+export const VAT_RATE = 0.15;
+export const WHT_RATE = 0.03;
+/** WHT applies only to payments above this amount (ETB). */
+export const WHT_THRESHOLD = 10000;
+
+export function num(value: number): string {
+  return value.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+/** Sentinel parent-campaign key for campaigns/deposits with no group label. */
+export const OTHER_PARENT = "__other__";
+
+/**
+ * A running top-up logged against a company, optionally scoped to one of
+ * its parent-campaign groups (see `ReportCampaign.parentCampaign`) —
+ * balance per group = deposits − ad spend − additional costs.
+ */
+export interface CompanyDeposit {
+  $id: string;
+  $createdAt: string;
+  companyId: string;
+  /** Parent-campaign group this funds; empty/unset = "Other campaigns". */
+  parentCampaign?: string;
+  amount: number;
+  /** YYYY-MM-DD */
+  date: string;
+  note?: string;
 }

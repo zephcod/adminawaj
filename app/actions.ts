@@ -6,7 +6,9 @@ import { COLLECTIONS, DB, db, ID } from "@/lib/appwrite";
 import {
   createCompany,
   createCost,
+  createDeposit,
   deleteCost,
+  deleteDeposit,
   reassignCampaign,
   setCampaignParent,
   updateCompany,
@@ -23,6 +25,9 @@ import {
 } from "@/lib/domain";
 import { normalizeAdAccountId } from "@/lib/meta";
 import { notifyImport, notifyNewContact } from "@/lib/notify";
+import { resendClient } from "@/lib/send";
+import { buildStatement } from "@/lib/statement";
+import { renderStatementEmail } from "@/lib/statement-email";
 import { syncAll, syncOne, type CompanySyncResult } from "@/lib/sync";
 
 function revalidateAll() {
@@ -383,11 +388,10 @@ export async function saveCampaignParent(
 
 export async function addCost(formData: FormData): Promise<void> {
   const companyId = str(formData, "companyId");
-  const metaCampaignId = str(formData, "metaCampaignId");
   const category = str(formData, "category");
   const amount = Number(formData.get("amount"));
   const date = str(formData, "date");
-  if (!companyId || !metaCampaignId) throw new Error("Pick a campaign");
+  if (!companyId) throw new Error("Missing company id");
   if (!COST_CATEGORIES.includes(category as CostCategory)) {
     throw new Error("Invalid category");
   }
@@ -395,13 +399,14 @@ export async function addCost(formData: FormData): Promise<void> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Invalid date");
   await createCost({
     companyId,
-    metaCampaignId,
+    parentCampaign: str(formData, "parentCampaign").slice(0, 256) || undefined,
     category: category as CostCategory,
     description: str(formData, "description").slice(0, 512) || undefined,
     amount,
     date,
   });
   revalidatePath(`/companies/${companyId}`);
+  revalidatePath("/companies");
 }
 
 export async function removeCost(formData: FormData): Promise<void> {
@@ -410,6 +415,35 @@ export async function removeCost(formData: FormData): Promise<void> {
   if (!id) throw new Error("Missing cost id");
   await deleteCost(id);
   revalidatePath(`/companies/${companyId}`);
+}
+
+// ── Deposits ───────────────────────────────────────────────
+
+export async function addDeposit(formData: FormData): Promise<void> {
+  const companyId = str(formData, "companyId");
+  const amount = Number(formData.get("amount"));
+  const date = str(formData, "date");
+  if (!companyId) throw new Error("Missing company id");
+  if (!(amount > 0)) throw new Error("Amount must be greater than 0");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Invalid date");
+  await createDeposit({
+    companyId,
+    parentCampaign: str(formData, "parentCampaign").slice(0, 256) || undefined,
+    amount,
+    date,
+    note: str(formData, "note").slice(0, 512) || undefined,
+  });
+  revalidatePath(`/companies/${companyId}`);
+  revalidatePath("/companies");
+}
+
+export async function removeDeposit(formData: FormData): Promise<void> {
+  const id = str(formData, "id");
+  const companyId = str(formData, "companyId");
+  if (!id) throw new Error("Missing deposit id");
+  await deleteDeposit(id);
+  revalidatePath(`/companies/${companyId}`);
+  revalidatePath("/companies");
 }
 
 // ── Issues ────────────────────────────────────────────────
@@ -442,4 +476,38 @@ export async function runSync(companyId?: string): Promise<CompanySyncResult[]> 
     revalidatePath(`/companies/${companyId}`);
   }
   return results;
+}
+
+// ── Statement / invoice ───────────────────────────────────
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Email a minimized statement for one parent group to a client. */
+export async function emailStatement(input: {
+  companyId: string;
+  to: string;
+  range?: string;
+  parent?: string;
+  summary?: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const to = input.to.trim();
+  if (!EMAIL_RE.test(to)) return { ok: false, message: "Enter a valid email address." };
+
+  const data = await buildStatement(input.companyId, input.range, input.parent);
+  if (!data) return { ok: false, message: "Company not found." };
+
+  try {
+    const subject = `Campaign statement — ${data.parentLabel} (${data.since} → ${data.until})`;
+    const html = await renderStatementEmail(data, input.summary?.slice(0, 2000));
+    const { error } = await resendClient().emails.send({
+      from: process.env.FROM_TRANSACTIONAL ?? "Awaj ET <no-reply@awajet.com>",
+      to,
+      subject,
+      html,
+    });
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: `Statement sent to ${to}.` };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
 }

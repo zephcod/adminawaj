@@ -2,21 +2,25 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   addCost,
+  addDeposit,
   deleteCompany,
   removeCost,
+  removeDeposit,
   saveCampaignDetails,
   saveCompany,
   saveInsightRow,
 } from "@/app/actions";
 import DeleteCompanyButton from "@/components/DeleteCompanyButton";
 import SyncButton from "@/components/SyncButton";
-import { getCampaigns, getCompany, getCosts, getInsights } from "@/lib/data";
+import { getCampaigns, getCompany, getCosts, getDeposits, getInsights } from "@/lib/data";
 import {
   COST_CATEGORIES,
   COST_CATEGORY_LABELS,
   money,
+  OTHER_PARENT,
   rangeToDates,
 } from "@/lib/domain";
+import { computeCompanyBalance, costGroupKey } from "@/lib/statement";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +42,12 @@ export default async function ManageCompanyPage({
   if (!company) notFound();
 
   const { since, until } = rangeToDates(range ?? "30d");
-  const [rows, campaigns, costs] = await Promise.all([
+  const [rows, campaigns, costs, deposits, balance] = await Promise.all([
     getInsights(companyId, since, until),
     getCampaigns(companyId),
     getCosts(companyId), // all dates — costs are managed here regardless of range
+    getDeposits(companyId), // all dates
+    computeCompanyBalance(companyId),
   ]);
   const campaignName = new Map(campaigns.map((c) => [c.metaCampaignId, c.name]));
   const sorted = [...rows].sort(
@@ -58,6 +64,12 @@ export default async function ManageCompanyPage({
           <h1 className="mt-1 text-3xl font-bold">{company.name}</h1>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href={`/companies/${company.$id}/statement`}
+            className="rounded-md border border-edge px-3 py-1.5 text-sm text-fg transition hover:border-gold hover:text-amber"
+          >
+            View report
+          </Link>
           <SyncButton companyId={company.$id} />
           <DeleteCompanyButton
             companyId={company.$id}
@@ -236,8 +248,9 @@ export default async function ManageCompanyPage({
         <h2 className="text-lg font-semibold">Additional costs</h2>
         <p className="mt-1 text-xs text-muted">
           Creative production, strategy overhead, consultation… recorded per
-          campaign in {company.currency} (the currency multiplier does not
-          apply). Shown on the client report as additional investment.
+          parent-campaign group in {company.currency} (the currency
+          multiplier does not apply). Shown on the client report as
+          additional investment, and settled per group in the balance above.
         </p>
 
         <form
@@ -246,15 +259,14 @@ export default async function ManageCompanyPage({
         >
           <input type="hidden" name="companyId" value={company.$id} />
           <label className="block text-sm lg:col-span-2">
-            <span className="mb-1 block text-muted">Campaign</span>
-            <select name="metaCampaignId" required className={inputCls}>
-              <option value="">Select campaign…</option>
-              {campaigns.map((c) => (
-                <option key={c.metaCampaignId} value={c.metaCampaignId}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <span className="mb-1 block text-muted">Parent group</span>
+            <input
+              name="parentCampaign"
+              placeholder="Leave blank for Other campaigns"
+              maxLength={256}
+              list="company-parents"
+              className={inputCls}
+            />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block text-muted">Category</span>
@@ -307,7 +319,7 @@ export default async function ManageCompanyPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-edge text-left text-xs tracking-wide text-muted uppercase">
-                  {["Date", "Campaign", "Category", "Description", "Amount", ""].map(
+                  {["Date", "Group", "Category", "Description", "Amount", ""].map(
                     (h, i) => (
                       <th key={i} className="px-3 py-2 font-medium">
                         {h}
@@ -317,11 +329,13 @@ export default async function ManageCompanyPage({
                 </tr>
               </thead>
               <tbody>
-                {costs.map((cost) => (
+                {costs.map((cost) => {
+                  const groupKey = costGroupKey(cost, campaigns);
+                  return (
                   <tr key={cost.$id} className="border-b border-edge/60 last:border-0">
                     <td className="px-3 py-2 font-mono text-xs">{cost.date}</td>
                     <td className="max-w-48 truncate px-3 py-2">
-                      {campaignName.get(cost.metaCampaignId) ?? cost.metaCampaignId}
+                      {groupKey === OTHER_PARENT ? "Other campaigns" : groupKey}
                     </td>
                     <td className="px-3 py-2">
                       {COST_CATEGORY_LABELS[cost.category]}
@@ -344,7 +358,8 @@ export default async function ManageCompanyPage({
                       </form>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 <tr>
                   <td colSpan={4} className="px-3 py-2 text-right text-xs font-semibold tracking-wide text-muted uppercase">
                     Total
@@ -352,6 +367,165 @@ export default async function ManageCompanyPage({
                   <td className="px-3 py-2 font-semibold">
                     {money(
                       costs.reduce((n, c) => n + c.amount, 0),
+                      company.currency
+                    )}
+                  </td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ── Deposits & account balance ── */}
+      <section className="mt-8 rounded-xl border border-edge bg-card p-4 shadow-sm sm:p-6">
+        <h2 className="text-lg font-semibold">Account balance</h2>
+        <p className="mt-1 text-xs text-muted">
+          Per parent-campaign group: deposits − lifetime ad spend − additional
+          costs. Same grouping as Campaigns above and the campaign statement.
+        </p>
+
+        {balance.byGroup.length > 0 && (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-edge text-left text-xs tracking-wide text-muted uppercase">
+                  {["Group", "Deposits", "Ad spend", "Costs", "Balance"].map((h) => (
+                    <th key={h} className="px-3 py-2 font-medium first:pl-0">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {balance.byGroup.map((g) => (
+                  <tr key={g.parentKey} className="border-b border-edge/60 last:border-0">
+                    <td className="px-3 py-2 pl-0 font-medium">{g.parentLabel}</td>
+                    <td className="px-3 py-2">{money(g.deposits, company.currency)}</td>
+                    <td className="px-3 py-2">{money(g.adSpend, company.currency)}</td>
+                    <td className="px-3 py-2">{money(g.costs, company.currency)}</td>
+                    <td
+                      className={`px-3 py-2 font-semibold ${
+                        g.balance >= 0 ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {money(g.balance, company.currency)}
+                    </td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className="px-3 py-2 pl-0 text-xs font-semibold tracking-wide text-muted uppercase">
+                    Total
+                  </td>
+                  <td className="px-3 py-2" colSpan={3} />
+                  <td
+                    className={`px-3 py-2 font-semibold ${
+                      balance.total >= 0 ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {money(balance.total, company.currency)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <h3 className="mt-6 text-sm font-semibold">Log a deposit</h3>
+        <form action={addDeposit} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <input type="hidden" name="companyId" value={company.$id} />
+          <label className="block text-sm lg:col-span-2">
+            <span className="mb-1 block text-muted">Parent group</span>
+            <input
+              name="parentCampaign"
+              placeholder="Leave blank for Other campaigns"
+              maxLength={256}
+              list="company-parents"
+              className={inputCls}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">
+              Amount ({company.currency})
+            </span>
+            <input
+              name="amount"
+              type="number"
+              step="any"
+              min="0"
+              required
+              className={inputCls}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Date</span>
+            <input name="date" type="date" required className={inputCls} />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Note</span>
+            <input
+              name="note"
+              maxLength={512}
+              placeholder="optional"
+              className={inputCls}
+            />
+          </label>
+          <div className="sm:col-span-2 lg:col-span-5">
+            <button
+              type="submit"
+              className="rounded-md bg-gold px-4 py-2 text-sm font-medium text-navy transition hover:bg-amber"
+            >
+              Add deposit
+            </button>
+          </div>
+        </form>
+
+        {deposits.length > 0 && (
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-edge text-left text-xs tracking-wide text-muted uppercase">
+                  {["Date", "Group", "Note", "Amount", ""].map((h, i) => (
+                    <th key={i} className="px-3 py-2 font-medium">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {deposits.map((d) => (
+                  <tr key={d.$id} className="border-b border-edge/60 last:border-0">
+                    <td className="px-3 py-2 font-mono text-xs">{d.date}</td>
+                    <td className="px-3 py-2">
+                      {d.parentCampaign?.trim() || "Other campaigns"}
+                    </td>
+                    <td className="max-w-56 truncate px-3 py-2 text-muted">
+                      {d.note || "—"}
+                    </td>
+                    <td className="px-3 py-2">{money(d.amount, company.currency)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <form action={removeDeposit}>
+                        <input type="hidden" name="id" value={d.$id} />
+                        <input type="hidden" name="companyId" value={company.$id} />
+                        <button
+                          type="submit"
+                          aria-label="Delete deposit"
+                          className="rounded border border-edge px-2 py-1 text-xs text-muted transition hover:border-red-400 hover:text-red-600"
+                        >
+                          ✕
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={3} className="px-3 py-2 text-right text-xs font-semibold tracking-wide text-muted uppercase">
+                    Total
+                  </td>
+                  <td className="px-3 py-2 font-semibold">
+                    {money(
+                      deposits.reduce((n, d) => n + d.amount, 0),
                       company.currency
                     )}
                   </td>
