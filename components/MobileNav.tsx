@@ -41,7 +41,7 @@ export default function MobileNav() {
                 <div className="flex items-center gap-2">
                   <AwajMark className="h-6 w-6 shrink-0" aria-hidden />
                   <p className="font-display text-xl font-bold">
-                    Awaj<span className="text-gold"> ET</span>
+                    Awaj<span className="text-gold"> CRM</span>
                   </p>
                 </div>
                 <p className="mt-1 font-mono text-[10px] tracking-[0.18em] text-white/40 uppercase">
@@ -91,7 +91,7 @@ export default function MobileNav() {
         className="flex items-center gap-1.5 font-display text-lg font-bold text-white"
       >
         <AwajMark className="h-6 w-6 shrink-0" aria-hidden />
-        Awaj<span className="text-gold"> ET</span>
+        Awaj<span className="text-gold"> CRM</span>
       </Link>
     </header>
   );

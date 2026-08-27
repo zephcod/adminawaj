@@ -19,7 +19,7 @@ interface SelectProps {
 /** Brand-styled Radix Select — accessible, touch-friendly, keyboard-navigable. */
 export function Select({ value, onValueChange, options, placeholder = "Select…", className = "" }: SelectProps) {
   return (
-    <SelectPrimitive.Root value={value || undefined} onValueChange={onValueChange}>
+    <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
       <SelectPrimitive.Trigger
         className={`flex min-h-10 w-full items-center justify-between gap-2 rounded-md border border-edge bg-card px-3 py-2 text-left text-sm text-fg focus:border-gold focus:outline-none data-[placeholder]:text-muted ${className}`}
       >

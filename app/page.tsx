@@ -14,7 +14,7 @@ export default async function DashboardPage() {
       <p className="font-mono text-xs tracking-[0.18em] text-amber uppercase">
         Dashboard
       </p>
-      <h1 className="mt-1 text-2xl font-bold md:text-3xl">Awaj status</h1>
+      <h1 className="mt-1 text-2xl font-bold md:text-3xl">Business status</h1>
 
       {/* Stat cards */}
       <div className="mt-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:gap-4 lg:mt-8 lg:grid-cols-4">
@@ -164,17 +164,19 @@ function StatCard({
   return (
     <div
       className={`rounded-lg border p-5 ${
-        accent ? "border-gold/40 bg-navy text-white" : "border-edge bg-card"
+        accent ? "border-green-400/40 bg-amber-400 text-white" : "border-edge bg-card"
       }`}
     >
       <p
         className={`font-mono text-[11px] tracking-[0.14em] uppercase ${
-          accent ? "text-gold" : "text-muted"
+          accent ? "text-gray-900" : "text-muted"
         }`}
       >
         {label}
       </p>
-      <p className="font-display mt-2 text-2xl font-bold">{value}</p>
+      <p className={`font-display mt-2 text-2xl font-bold ${
+          accent ? "text-gray-900" : "text-foreground"
+        }`}>{value}</p>
     </div>
   );
 }

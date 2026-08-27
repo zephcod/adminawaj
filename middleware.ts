@@ -13,8 +13,11 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Protect everything except the login page, static assets, and the Meta
-  // sync cron endpoint (Bearer CRON_SECRET-authed, called by Vercel Cron
-  // with no session cookie — see app/api/sync/route.ts).
-  matcher: ["/((?!login|api/sync|_next/static|_next/image|favicon.ico).*)"],
+  // Protect everything except the login page, static assets, the Meta sync
+  // cron endpoint, and the SMS provider callback + reconcile-cron endpoints
+  // (all called without a session cookie — see app/api/sync/route.ts,
+  // app/api/sms/callback/*/route.ts, app/api/sms/reconcile/route.ts).
+  matcher: [
+    "/((?!login|api/sync|api/sms/callback|api/sms/reconcile|_next/static|_next/image|favicon.ico).*)",
+  ],
 };

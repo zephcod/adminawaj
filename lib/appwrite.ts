@@ -8,6 +8,8 @@ export { ID, Query };
 export * from "./domain";
 // Email-outreach system types (unchanged from the original schema)
 export * from "./email-types";
+// SMS outreach system types (AfroMessage)
+export * from "./sms-types";
 
 export const COLLECTIONS = {
   contacts: "contacts",
@@ -30,6 +32,14 @@ export const COLLECTIONS = {
   issues: "report_issues",
   costs: "campaign_costs",
   deposits: "company_deposits",
+  // ── SMS outreach (AfroMessage) ──
+  // Note: "smsCampaigns" is a distinct SMS blast, unrelated to the
+  // email-outreach "campaigns" collection or "reportCampaigns" (Meta ads)
+  // above — three different "campaign" concepts now coexist in this app.
+  smsCampaigns: "sms_campaigns",
+  smsMessages: "sms_messages",
+  smsEvents: "sms_events",
+  smsSuppressions: "sms_suppressions",
 } as const;
 
 let _db: Databases | null = null;

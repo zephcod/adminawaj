@@ -16,7 +16,7 @@ export default function Sidebar() {
         <div className="flex items-center gap-2">
           <AwajMark className="h-7 w-7 shrink-0" aria-hidden />
           <div className="font-display text-xl font-bold tracking-tight">
-            Awaj<span className="text-gold"> ET</span>
+            Awaj<span className="text-gold"> CRM</span>
           </div>
         </div>
         <div className="mt-1 font-mono text-[10px] tracking-[0.18em] text-white/40 uppercase">

@@ -20,12 +20,17 @@ import {
   ISSUE_STATUSES,
   LeadStage,
   STAGE_LABELS,
+  type Contact,
   type CostCategory,
   type IssueStatus,
 } from "@/lib/domain";
 import { normalizeAdAccountId } from "@/lib/meta";
 import { notifyImport, notifyNewContact } from "@/lib/notify";
 import { resendClient } from "@/lib/send";
+import { env } from "@/lib/env";
+import { buildSmsCallbackUrl, bulkSendSms, sendSms } from "@/lib/sms/afromessage";
+import * as smsData from "@/lib/sms/data";
+import { normalizePhone } from "@/lib/sms/phone";
 import { buildStatement } from "@/lib/statement";
 import { renderStatementEmail } from "@/lib/statement-email";
 import { syncAll, syncOne, type CompanySyncResult } from "@/lib/sync";
@@ -510,4 +515,158 @@ export async function emailStatement(input: {
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
+}
+
+// ── SMS ────────────────────────────────────────────────────
+
+const SMS_RECIPIENT_CAP = 500;
+
+/** Single SMS to one contact or a raw phone. Persist-before-send. */
+export async function sendSingleSms(formData: FormData): Promise<{ ok: boolean; message: string }> {
+  const rawPhone = str(formData, "phone");
+  const body = str(formData, "message");
+  const contactId = str(formData, "contactId") || undefined;
+
+  const phone = normalizePhone(rawPhone);
+  if (!phone) return { ok: false, message: `Invalid phone number: ${rawPhone}` };
+  if (!body) return { ok: false, message: "Message body is required." };
+  if (await smsData.isPhoneSuppressed(phone)) {
+    return { ok: false, message: "This number has opted out of SMS." };
+  }
+
+  const row = await smsData.createSmsMessageRow({ contactId, toNumber: phone, body });
+
+  if (!env.smsEnabled() || env.smsDryRun()) {
+    revalidatePath("/sms");
+    return { ok: true, message: "Saved (SMS sending is disabled — dry run)." };
+  }
+
+  const result = await sendSms({
+    to: phone,
+    message: body,
+    sender: env.afromessageSender(),
+    from: env.afromessageIdentifierId(),
+    callback: buildSmsCallbackUrl("status"),
+  });
+  if (!result.ok) {
+    await smsData.markMessageFailed(row.$id, result.code, result.message);
+    return { ok: false, message: `Send failed: ${result.message}` };
+  }
+  await smsData.setMessageProviderId(row.$id, result.data.message_id);
+  revalidatePath("/sms");
+  return { ok: true, message: `Sent (message_id ${result.data.message_id}).` };
+}
+
+/**
+ * Create + launch a bulk SMS campaign. Re-validates everything server-side
+ * — never trusts the client-only confirmation dialog.
+ */
+export async function createSmsCampaign(
+  formData: FormData
+): Promise<{ ok: boolean; message: string; campaignId?: string }> {
+  const name = str(formData, "name");
+  const senderName = str(formData, "senderName") || env.afromessageSender();
+  const bodyTemplate = str(formData, "bodyTemplate");
+  const contactIds = formData.getAll("contactIds").map(String);
+  const overrideCap = formData.get("overrideCap") === "on";
+  const confirmed = formData.get("confirmed") === "on";
+
+  if (!name || !senderName || !bodyTemplate) {
+    return { ok: false, message: "Name, sender, and message body are required." };
+  }
+  if (!confirmed) {
+    return { ok: false, message: "Confirmation step was not completed." };
+  }
+  if (contactIds.length === 0) {
+    return { ok: false, message: "No recipients selected." };
+  }
+  if (contactIds.length > SMS_RECIPIENT_CAP && !overrideCap) {
+    return {
+      ok: false,
+      message: `${contactIds.length} recipients exceeds the ${SMS_RECIPIENT_CAP} cap. Check "override" to proceed anyway.`,
+    };
+  }
+
+  // Resolve contacts → phones, normalize, and drop opted-out numbers
+  // server-side even though they may have been present in the submitted list.
+  const contacts = await Promise.all(
+    contactIds.map((id) =>
+      db()
+        .getDocument(DB(), COLLECTIONS.contacts, id)
+        .then((d) => d as unknown as Contact)
+        .catch(() => null)
+    )
+  );
+  const candidates = contacts
+    .filter((c): c is Contact => !!c)
+    .map((c) => ({ contactId: c.$id, phone: c.phone ? normalizePhone(c.phone) : null }))
+    .filter((c): c is { contactId: string; phone: string } => !!c.phone);
+
+  const suppressedChecks = await Promise.all(candidates.map((c) => smsData.isPhoneSuppressed(c.phone)));
+  const notSuppressed = candidates.filter((_, i) => !suppressedChecks[i]);
+  const seen = new Set<string>();
+  const deduped = notSuppressed.filter((r) => {
+    if (seen.has(r.phone)) return false;
+    seen.add(r.phone);
+    return true;
+  });
+
+  if (deduped.length === 0) {
+    return { ok: false, message: "No valid, opted-in recipients with a phone number." };
+  }
+
+  const campaign = await smsData.createSmsCampaignRow({
+    name,
+    senderName,
+    bodyTemplate,
+    recipientCount: deduped.length,
+  });
+
+  // Persist a `pending` sms_messages row per recipient BEFORE calling the provider.
+  const messageRows = await Promise.all(
+    deduped.map((r) =>
+      smsData.createSmsMessageRow({
+        campaignId: campaign.$id,
+        contactId: r.contactId,
+        toNumber: r.phone,
+        body: bodyTemplate,
+      })
+    )
+  );
+
+  if (!env.smsEnabled() || env.smsDryRun()) {
+    revalidatePath("/sms");
+    return {
+      ok: true,
+      message: `Saved ${messageRows.length} messages (dry run — SMS sending disabled).`,
+      campaignId: campaign.$id,
+    };
+  }
+
+  await smsData.updateCampaignStatus(campaign.$id, "queued");
+  const { campaignId: providerCampaignId } = await bulkSendSms({
+    to: deduped.map((r) => ({ to: r.phone, message: bodyTemplate })),
+    sender: senderName,
+    from: env.afromessageIdentifierId(),
+    campaign: name,
+    createCallback: buildSmsCallbackUrl("create"),
+    statusCallback: buildSmsCallbackUrl("status"),
+  });
+  if (providerCampaignId) await smsData.setCampaignProviderId(campaign.$id, providerCampaignId);
+  await smsData.updateCampaignStatus(campaign.$id, "sending");
+
+  revalidatePath("/sms");
+  return {
+    ok: true,
+    message: `Campaign launched: ${messageRows.length} messages queued.`,
+    campaignId: campaign.$id,
+  };
+}
+
+/** Manual SMS opt-out (mirrors the email suppression's manual-add path). */
+export async function optOutPhone(formData: FormData): Promise<void> {
+  const phone = normalizePhone(str(formData, "phone"));
+  if (!phone) throw new Error("Invalid phone number");
+  await smsData.suppressPhone(phone, "manual");
+  revalidatePath("/sms");
 }
