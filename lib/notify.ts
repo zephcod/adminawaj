@@ -1,10 +1,17 @@
 import { Resend } from "resend";
+import { telegramImport, telegramMetaLeads, telegramNewContact } from "./telegram";
 
 /**
- * Internal notifications via Resend (same account/domain as the
- * outreach app). Sends to NOTIFY_EMAILS (comma-separated) from the
- * transactional identity. Failures are logged, never thrown — a
- * broken email must not block contact creation.
+ * Internal notifications — the single fan-out point for the team.
+ *
+ * Each notify* function below delivers on two channels in parallel: email
+ * via Resend (same account/domain as the outreach app, to NOTIFY_EMAILS
+ * from the transactional identity) and Telegram via lib/telegram.ts.
+ * Either channel silently no-ops when unconfigured, so running with just
+ * one of NOTIFY_EMAILS / TELEGRAM_CHAT_ID set is fine.
+ *
+ * Failures are logged, never thrown — neither a broken email nor a
+ * Telegram outage may block contact creation or a lead sync.
  */
 
 let _resend: Resend | null = null;
@@ -82,6 +89,10 @@ export interface NewContactInfo {
 }
 
 export async function notifyNewContact(c: NewContactInfo): Promise<void> {
+  await Promise.all([emailNewContact(c), telegramNewContact(c)]);
+}
+
+async function emailNewContact(c: NewContactInfo): Promise<void> {
   const to = recipients();
   if (to.length === 0) return;
 
@@ -110,10 +121,18 @@ export async function notifyNewContact(c: NewContactInfo): Promise<void> {
   }
 }
 
-/** One digest per Meta Lead Ads sync run — never one email per lead. */
+/** One digest per Meta Lead Ads sync run — never one notification per lead. */
 export async function notifyMetaLeads(imported: number, failed: number): Promise<void> {
+  if (imported === 0) return;
+  await Promise.all([
+    emailMetaLeads(imported, failed),
+    telegramMetaLeads(imported, failed),
+  ]);
+}
+
+async function emailMetaLeads(imported: number, failed: number): Promise<void> {
   const to = recipients();
-  if (to.length === 0 || imported === 0) return;
+  if (to.length === 0) return;
 
   const rows = [
     row("Imported", String(imported)),
@@ -138,8 +157,13 @@ export async function notifyMetaLeads(imported: number, failed: number): Promise
 }
 
 export async function notifyImport(imported: number, skipped: number): Promise<void> {
+  if (imported === 0) return;
+  await Promise.all([emailImport(imported, skipped), telegramImport(imported, skipped)]);
+}
+
+async function emailImport(imported: number, skipped: number): Promise<void> {
   const to = recipients();
-  if (to.length === 0 || imported === 0) return;
+  if (to.length === 0) return;
 
   const rows = [
     row("Imported", String(imported)),
