@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCompanies } from "@/lib/data";
 import { env } from "@/lib/env";
 import { fetchLead, fetchPageAccessToken } from "@/lib/meta";
-import { ingestLead } from "@/lib/meta-leads";
+import { ingestLead, recordWebhookFailure } from "@/lib/meta-leads";
 
 export const maxDuration = 60;
 
@@ -45,6 +45,8 @@ interface LeadgenChange {
     leadgen_id?: string;
     page_id?: string;
     form_id?: string;
+    /** Unix seconds. */
+    created_time?: number;
   };
 }
 
@@ -83,9 +85,20 @@ export async function POST(req: NextRequest) {
         const lead = await fetchLead(leadgenId, pageToken);
         await ingestLead(lead, { pageId, company, deliveredBy: "webhook" });
       } catch (e) {
-        // Swallow: answering non-200 makes Meta retry and eventually disable
-        // the subscription. The backfill poll picks this lead up instead.
+        // Answering non-200 makes Meta retry and eventually disable the
+        // subscription, so the delivery is still acknowledged. But leave a
+        // trace: without one, a delivery that arrived and failed is
+        // indistinguishable from one that never arrived. The row is written
+        // in `failed` state, so the backfill poll retries it in place.
+        const message = e instanceof Error ? e.message : String(e);
         console.error("[meta-webhook] ingest failed for", leadgenId, e);
+        await recordWebhookFailure({
+          leadgenId,
+          pageId,
+          companyId: company?.$id,
+          createdTime: change.value!.created_time,
+          error: message,
+        });
       }
     }
   }

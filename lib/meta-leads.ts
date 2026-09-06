@@ -211,6 +211,45 @@ export async function ingestLead(
   }
 }
 
+/**
+ * A signed webhook delivery arrived but could not be turned into a lead —
+ * the Graph lookup failed, Appwrite was unreachable, whatever. Record it so
+ * "the webhook never fired" and "the webhook fired and failed" stop looking
+ * identical from the database; the next poll retries the row in place.
+ */
+export async function recordWebhookFailure(info: {
+  leadgenId: string;
+  pageId: string;
+  companyId?: string;
+  /** Meta's `created_time` from the webhook payload, in unix seconds. */
+  createdTime?: number;
+  error: string;
+}): Promise<void> {
+  try {
+    const existing = await findMetaLead(info.leadgenId);
+    // Already ingested — a later delivery failing is not a regression.
+    if (existing && existing.state !== "failed") return;
+
+    const seconds = info.createdTime ?? Math.floor(Date.now() / 1000);
+    await recordMetaLead(existing, {
+      leadgenId: info.leadgenId,
+      pageId: info.pageId,
+      formName: null,
+      companyId: info.companyId ?? null,
+      createdTimeMeta: new Date(seconds * 1000).toISOString(),
+      // The answers are exactly what we failed to fetch.
+      fieldData: "[]",
+      contactId: null,
+      leadId: null,
+      state: "failed",
+      error: info.error.slice(0, 256),
+      deliveredBy: "webhook",
+    });
+  } catch (e) {
+    console.error("[meta-leads] could not record webhook failure", info.leadgenId, e);
+  }
+}
+
 async function upsertContact(c: {
   email: string;
   firstName: string;
