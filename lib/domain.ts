@@ -15,7 +15,14 @@ export interface Contact {
   phone?: string;
   jobTitle?: string;
   status: ContactStatus;
-  source: "cold" | "lead_magnet" | "manual" | "import" | "referral" | "website";
+  source:
+    | "cold"
+    | "lead_magnet"
+    | "manual"
+    | "import"
+    | "referral"
+    | "website"
+    | "meta_lead_ads";
   tags: string[];
   notes?: string;
 }
@@ -238,6 +245,41 @@ export interface Issue {
   status: IssueStatus;
   /** Awaj ET's reply, shown to the client. */
   response?: string;
+}
+
+// ── Meta Lead Ads ingestion ─────────────────────────────────
+// Raw log of every lead Meta hands us, keyed by Meta's `leadgen_id`.
+// Kept even though leads auto-create a Contact + pipeline Lead: it is what
+// makes webhook and poll delivering the same lead safe, and it is the only
+// place a form's custom questions survive verbatim.
+
+export type MetaLeadState = "imported" | "duplicate" | "failed";
+/** How we learned about the lead: pushed by Meta, or found by the poll. */
+export type MetaLeadDelivery = "webhook" | "poll";
+
+export interface MetaLead {
+  $id: string;
+  $createdAt: string;
+  $updatedAt: string;
+  /** Meta's lead id — the natural key, uniquely indexed. */
+  leadgenId: string;
+  pageId: string;
+  formName?: string;
+  /** Resolved from Company.fbPageId; unset when no company owns the page. */
+  companyId?: string;
+  /** Meta's own `created_time` for the submission. */
+  createdTimeMeta: string;
+  /**
+   * JSON.stringify'd raw `field_data` (Appwrite has no JSON attribute type).
+   * Every answer, standard and custom, lives here — the collection stays
+   * narrow instead of growing a column per form question.
+   */
+  fieldData: string;
+  contactId?: string;
+  leadId?: string;
+  state: MetaLeadState;
+  error?: string;
+  deliveredBy: MetaLeadDelivery;
 }
 
 /** Inclusive date range presets for the Manage-company daily data table. */

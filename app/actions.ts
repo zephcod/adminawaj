@@ -25,6 +25,7 @@ import {
   type IssueStatus,
 } from "@/lib/domain";
 import { normalizeAdAccountId } from "@/lib/meta";
+import { syncMetaLeads, type MetaLeadSyncResult } from "@/lib/meta-leads";
 import { notifyImport, notifyNewContact } from "@/lib/notify";
 import { resendClient } from "@/lib/send";
 import { env } from "@/lib/env";
@@ -476,6 +477,27 @@ export async function replyToIssue(formData: FormData): Promise<void> {
 
 export async function runSync(companyId?: string): Promise<CompanySyncResult[]> {
   const results = companyId ? [await syncOne(companyId)] : await syncAll();
+  revalidatePath("/companies");
+  if (companyId) {
+    revalidatePath(`/companies/${companyId}`);
+  }
+  return results;
+}
+
+/**
+ * Pull Lead Ads submissions from every Page-owning company (or one), turning
+ * each into a Contact + pipeline Lead. Idempotent — re-running only picks up
+ * what the webhook missed.
+ */
+export async function runMetaLeadSync(
+  companyId?: string,
+  days = 7
+): Promise<MetaLeadSyncResult[]> {
+  if (!env.metaLeadsEnabled()) {
+    throw new Error("Meta lead ingestion is disabled (META_LEADS_ENABLED=false).");
+  }
+  const results = await syncMetaLeads(days, companyId);
+  revalidateAll();
   revalidatePath("/companies");
   if (companyId) {
     revalidatePath(`/companies/${companyId}`);

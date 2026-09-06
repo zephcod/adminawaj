@@ -91,7 +91,7 @@ export default function ContactsTable({
         >
           {sources.map((s) => (
             <option key={s} value={s}>
-              {s === "all" ? "All sources" : s.replace("_", " ")}
+              {s === "all" ? "All sources" : s.replace(/_/g, " ")}
             </option>
           ))}
         </select>
@@ -188,7 +188,7 @@ export default function ContactsTable({
               </td>
               <td className="px-4 py-3">
                 <span className="font-mono text-[10px] tracking-wider text-muted uppercase">
-                  {c.source.replace("_", " ")}
+                  {c.source.replace(/_/g, " ")}
                 </span>
               </td>
               <td className="px-4 py-3">

@@ -66,7 +66,7 @@ export default async function DashboardPage() {
               {m.sourceCounts.map((s) => (
                 <div key={s.source} className="flex items-center gap-3">
                   <span className="w-24 truncate font-mono text-[11px] tracking-wider text-muted uppercase">
-                    {s.source.replace("_", " ")}
+                    {s.source.replace(/_/g, " ")}
                   </span>
                   <div className="h-3 flex-1 overflow-hidden rounded-full bg-app">
                     <div

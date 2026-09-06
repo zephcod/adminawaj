@@ -1,8 +1,14 @@
 /**
- * Meta Marketing API client — campaign metadata and daily campaign-level
- * insights for a client ad account. Uses a long-lived system-user token
- * (META_ACCESS_TOKEN) with `ads_read` on each client ad account.
+ * Meta Graph API client. Two concerns share one long-lived system-user
+ * token (META_ACCESS_TOKEN):
+ *
+ *  - Marketing API: campaign metadata and daily campaign-level insights
+ *    for a client ad account. Needs `ads_read` on each ad account.
+ *  - Lead Ads: the actual submissions behind the `leads` insight count.
+ *    Needs `leads_retrieval` on each client *Page*, and runs against a
+ *    Page access token exchanged from the system-user token.
  */
+import { createHmac } from "node:crypto";
 import { env } from "./env";
 
 const BASE = () => `https://graph.facebook.com/${env.metaApiVersion()}`;
@@ -32,16 +38,34 @@ async function metaGet<T>(url: string): Promise<{ data: T[]; paging?: MetaPaging
   return json;
 }
 
-/** Follow pagination until exhausted. */
-async function metaGetAll<T>(firstUrl: string): Promise<T[]> {
+/**
+ * Follow pagination until exhausted, or until `maxPages` is reached.
+ * Ad-account edges are shallow; the Lead Ads `/leads` edge is not, so
+ * callers reading leads pass a bound rather than looping indefinitely.
+ */
+async function metaGetAll<T>(firstUrl: string, maxPages = Infinity): Promise<T[]> {
   const out: T[] = [];
   let url: string | undefined = firstUrl;
-  while (url) {
-    const page: { data: T[]; paging?: MetaPaging } = await metaGet<T>(url);
-    out.push(...(page.data ?? []));
-    url = page.paging?.next;
+  for (let page = 0; url && page < maxPages; page++) {
+    const res: { data: T[]; paging?: MetaPaging } = await metaGet<T>(url);
+    out.push(...(res.data ?? []));
+    url = res.paging?.next;
   }
   return out;
+}
+
+/**
+ * Single-object GET. `metaGet` assumes the `{ data: [...] }` list envelope;
+ * node endpoints like /{page-id} and /{leadgen-id} return a bare object.
+ */
+async function metaGetOne<T>(url: string): Promise<T> {
+  const res = await fetch(url, { cache: "no-store" });
+  const json = await res.json();
+  if (!res.ok || json.error) {
+    const msg = json.error?.message ?? `HTTP ${res.status}`;
+    throw new Error(`Meta API error: ${msg}`);
+  }
+  return json as T;
 }
 
 export interface MetaCampaign {
@@ -175,6 +199,113 @@ export async function fetchDailyInsights(
       results: leads + calls + follows + engagement + messages,
     };
   });
+}
+
+// ── Lead Ads ────────────────────────────────────────────────
+//
+// Retrieving the people who filled in a lead form is a Page-scoped
+// operation: it needs `leads_retrieval` on a *Page* access token, not the
+// ad-account `ads_read` the insights calls above use. So every call here
+// exchanges the system-user token for a page token first.
+
+/**
+ * Apps with "Require App Secret" enabled reject calls without an
+ * `appsecret_proof` (HMAC-SHA256 of the access token, keyed by the app
+ * secret). Added only when META_APP_SECRET is configured — harmless on
+ * apps that don't require it, and the whole Lead Ads poll still works
+ * without the secret set.
+ */
+function withProof(params: URLSearchParams, token: string): URLSearchParams {
+  // env.metaAppSecret() rejects anything that isn't a real 32-hex app secret,
+  // so a paste error can't turn every lead call into "Invalid appsecret_proof".
+  const secret = env.metaAppSecret();
+  if (secret) {
+    params.set("appsecret_proof", createHmac("sha256", secret).update(token).digest("hex"));
+  }
+  return params;
+}
+
+function leadParams(token: string, extra: Record<string, string> = {}): URLSearchParams {
+  return withProof(new URLSearchParams({ ...extra, access_token: token }), token);
+}
+
+// Page tokens don't expire while the system user's token is valid, so one
+// exchange per page per process is plenty (same shape as the SMS balance cache).
+const pageTokenCache = new Map<string, string>();
+
+/**
+ * Exchange the system-user token for a Page access token. Falls back to the
+ * system token when Meta returns no `access_token` field — some setups grant
+ * lead access directly, and failing here would block the whole page's sync.
+ */
+export async function fetchPageAccessToken(pageId: string): Promise<string> {
+  const cached = pageTokenCache.get(pageId);
+  if (cached) return cached;
+
+  const system = env.metaAccessToken();
+  const params = leadParams(system, { fields: "access_token" });
+  const res = await metaGetOne<{ access_token?: string }>(
+    `${BASE()}/${pageId}?${params}`
+  );
+  const token = res.access_token || system;
+  pageTokenCache.set(pageId, token);
+  return token;
+}
+
+export interface MetaLeadgenForm {
+  id: string;
+  name?: string;
+  status?: string;
+}
+
+/** Every lead form on a Page (including archived ones — filter by `status`). */
+export async function fetchLeadgenForms(
+  pageId: string,
+  pageToken: string
+): Promise<MetaLeadgenForm[]> {
+  const params = leadParams(pageToken, { fields: "id,name,status", limit: "100" });
+  return metaGetAll<MetaLeadgenForm>(`${BASE()}/${pageId}/leadgen_forms?${params}`, 20);
+}
+
+export interface MetaLeadField {
+  name: string;
+  values: string[];
+}
+
+export interface MetaLeadRow {
+  id: string;
+  created_time: string;
+  field_data: MetaLeadField[];
+}
+
+// Ad/adset/campaign attribution is deliberately not requested: the insights
+// sync already reports campaign-level lead counts, and storing it per lead
+// would widen meta_leads for no reader.
+const LEAD_FIELDS = "id,created_time,field_data";
+
+/** Leads submitted on `formId` after `sinceUnix` (seconds). */
+export async function fetchFormLeads(
+  formId: string,
+  pageToken: string,
+  sinceUnix: number
+): Promise<MetaLeadRow[]> {
+  const params = leadParams(pageToken, {
+    fields: LEAD_FIELDS,
+    limit: "100",
+    filtering: JSON.stringify([
+      { field: "time_created", operator: "GREATER_THAN", value: sinceUnix },
+    ]),
+  });
+  return metaGetAll<MetaLeadRow>(`${BASE()}/${formId}/leads?${params}`, 50);
+}
+
+/** One lead by id — the webhook payload carries only the id, not the answers. */
+export async function fetchLead(
+  leadgenId: string,
+  pageToken: string
+): Promise<MetaLeadRow> {
+  const params = leadParams(pageToken, { fields: LEAD_FIELDS });
+  return metaGetOne<MetaLeadRow>(`${BASE()}/${leadgenId}?${params}`);
 }
 
 /** Count ads per campaign across the ad account. */

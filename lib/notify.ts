@@ -91,7 +91,7 @@ export async function notifyNewContact(c: NewContactInfo): Promise<void> {
     row("Email", esc(c.email)),
     c.company ? row("Company", esc(c.company)) : "",
     c.phone ? row("Phone", esc(c.phone)) : "",
-    row("Source", esc(c.source.replace("_", " "))),
+    row("Source", esc(c.source.replace(/_/g, " "))),
   ].join("");
 
   const cta = appUrl()
@@ -107,6 +107,33 @@ export async function notifyNewContact(c: NewContactInfo): Promise<void> {
     });
   } catch (e) {
     console.error("[notify] new-contact email failed:", e);
+  }
+}
+
+/** One digest per Meta Lead Ads sync run — never one email per lead. */
+export async function notifyMetaLeads(imported: number, failed: number): Promise<void> {
+  const to = recipients();
+  if (to.length === 0 || imported === 0) return;
+
+  const rows = [
+    row("Imported", String(imported)),
+    failed > 0 ? row("Failed", `${failed} (see the company's Meta Lead Ads card)`) : "",
+    row("Source", "Meta Lead Ads"),
+  ].join("");
+
+  const cta = appUrl()
+    ? `<p style="margin:24px 0 0;"><a href="${appUrl()}/pipeline" style="background:${brand.gold};color:${brand.navy};padding:12px 28px;border-radius:6px;font-size:15px;font-weight:600;font-family:'Space Grotesk','Segoe UI',Arial,sans-serif;text-decoration:none;">Open pipeline</a></p>`
+    : "";
+
+  try {
+    await resend().emails.send({
+      from: from(),
+      to,
+      subject: `Meta Lead Ads: ${imported} new lead${imported === 1 ? "" : "s"}`,
+      html: shell("Meta leads landed", rows, cta),
+    });
+  } catch (e) {
+    console.error("[notify] meta-leads email failed:", e);
   }
 }
 

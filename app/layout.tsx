@@ -16,7 +16,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Awaj ET — Mission Control",
+  title: "Awaj Admin",
   description: "Client lead management for Awaj ET",
 };
 

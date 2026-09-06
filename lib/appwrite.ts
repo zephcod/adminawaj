@@ -40,6 +40,10 @@ export const COLLECTIONS = {
   smsMessages: "sms_messages",
   smsEvents: "sms_events",
   smsSuppressions: "sms_suppressions",
+  // ── Meta Lead Ads ──
+  // Raw ingest log keyed by Meta's leadgen_id; the Contact/Lead it produced
+  // live in the "contacts"/"leads" collections above.
+  metaLeads: "meta_leads",
 } as const;
 
 let _db: Databases | null = null;

@@ -8,6 +8,7 @@ import {
 import { getContacts } from "@/lib/data";
 import ContactsTable from "@/components/ContactsTable";
 import ImportContacts from "@/components/ImportContacts";
+import MetaLeadSync from "@/components/MetaLeadSync";
 import NewContactForm from "@/components/NewContactForm";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export default async function ContactsPage() {
           </p>
         </div>
         <div className="flex gap-3">
+          <MetaLeadSync />
           <ImportContacts importContacts={importContacts} />
           <NewContactForm createContact={createContact} />
         </div>

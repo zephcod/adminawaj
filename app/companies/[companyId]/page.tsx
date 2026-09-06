@@ -11,7 +11,13 @@ import {
   saveInsightRow,
 } from "@/app/actions";
 import DeleteCompanyButton from "@/components/DeleteCompanyButton";
+import MetaLeadSync from "@/components/MetaLeadSync";
 import SyncButton from "@/components/SyncButton";
+import {
+  countFailedMetaLeads,
+  getMetaLeadsForCompany,
+  mapLeadFields,
+} from "@/lib/meta-leads";
 import { getCampaigns, getCompany, getCosts, getDeposits, getInsights } from "@/lib/data";
 import {
   COST_CATEGORIES,
@@ -29,6 +35,15 @@ const inputCls =
 const cellInput =
   "w-24 rounded border border-edge bg-input px-2 py-1 text-right font-mono text-xs focus:border-gold focus:outline-none";
 
+/** meta_leads.fieldData is the provider's raw payload — never trust it to parse. */
+function safeFields(fieldData: string) {
+  try {
+    return mapLeadFields(JSON.parse(fieldData));
+  } catch {
+    return { extras: {} } as ReturnType<typeof mapLeadFields>;
+  }
+}
+
 export default async function ManageCompanyPage({
   params,
   searchParams,
@@ -42,13 +57,16 @@ export default async function ManageCompanyPage({
   if (!company) notFound();
 
   const { since, until } = rangeToDates(range ?? "30d");
-  const [rows, campaigns, costs, deposits, balance] = await Promise.all([
-    getInsights(companyId, since, until),
-    getCampaigns(companyId),
-    getCosts(companyId), // all dates — costs are managed here regardless of range
-    getDeposits(companyId), // all dates
-    computeCompanyBalance(companyId),
-  ]);
+  const [rows, campaigns, costs, deposits, balance, metaLeads, failedLeads] =
+    await Promise.all([
+      getInsights(companyId, since, until),
+      getCampaigns(companyId),
+      getCosts(companyId), // all dates — costs are managed here regardless of range
+      getDeposits(companyId), // all dates
+      computeCompanyBalance(companyId),
+      company.fbPageId ? getMetaLeadsForCompany(companyId) : [],
+      company.fbPageId ? countFailedMetaLeads(companyId) : 0,
+    ]);
   const campaignName = new Map(campaigns.map((c) => [c.metaCampaignId, c.name]));
   const sorted = [...rows].sort(
     (a, b) => b.date.localeCompare(a.date) || a.metaCampaignId.localeCompare(b.metaCampaignId)
@@ -241,6 +259,104 @@ export default async function ManageCompanyPage({
             ))}
           </datalist>
         </div>
+      </section>
+
+      {/* ── Meta Lead Ads ── */}
+      <section className="mt-8 rounded-xl border border-edge bg-card shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 sm:px-6">
+          <h2 className="text-lg font-semibold">Meta Lead Ads</h2>
+          {company.fbPageId && <MetaLeadSync companyId={company.$id} label="Sync leads" />}
+        </div>
+        {!company.fbPageId ? (
+          <p className="px-4 pt-1 pb-6 text-xs text-muted sm:px-6">
+            Set this company&apos;s Facebook Page ID above to pull the people who
+            filled in its lead forms. Each becomes a contact and a pipeline lead.
+          </p>
+        ) : (
+          <>
+            <p className="px-4 pt-1 text-xs text-muted sm:px-6">
+              Leads from page{" "}
+              <span className="font-mono">{company.fbPageId}</span> arrive in real
+              time and land in the{" "}
+              <Link href="/pipeline" className="text-amber hover:underline">
+                pipeline
+              </Link>
+              .{" "}
+              {failedLeads > 0 && (
+                <span className="text-red-600">
+                  {failedLeads} lead{failedLeads === 1 ? "" : "s"} failed to import
+                  — the next sync retries them.
+                </span>
+              )}
+            </p>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-edge text-left text-xs tracking-wide text-muted uppercase">
+                    {["Received", "Name", "Phone", "Form", "Status"].map((h, i) => (
+                      <th key={i} className="px-3 py-3 font-medium first:pl-4 sm:first:pl-6">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {metaLeads.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-muted">
+                        No leads yet. Run a sync to backfill recent submissions.
+                      </td>
+                    </tr>
+                  )}
+                  {metaLeads.map((ml) => {
+                    const f = safeFields(ml.fieldData);
+                    const name =
+                      [f.firstName, f.lastName].filter(Boolean).join(" ") ||
+                      f.fullName ||
+                      "—";
+                    return (
+                      <tr key={ml.$id} className="border-b border-edge/60 last:border-0">
+                        <td className="px-3 py-2 pl-4 font-mono text-xs sm:pl-6">
+                          {ml.createdTimeMeta.slice(0, 16).replace("T", " ")}
+                        </td>
+                        <td className="max-w-48 truncate px-3 py-2">
+                          {ml.leadId ? (
+                            <Link
+                              href={`/leads/${ml.leadId}`}
+                              className="text-amber hover:underline"
+                            >
+                              {name}
+                            </Link>
+                          ) : (
+                            name
+                          )}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-xs">{f.phone || "—"}</td>
+                        <td className="max-w-40 truncate px-3 py-2 text-muted">
+                          {ml.formName || "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          {ml.state === "failed" ? (
+                            <span
+                              title={ml.error}
+                              className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] text-red-600"
+                            >
+                              failed
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[10px] text-amber">
+                              {ml.deliveredBy}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </section>
 
       {/* ── Additional costs ── */}

@@ -14,10 +14,12 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Protect everything except the login page, static assets, the Meta sync
-  // cron endpoint, and the SMS provider callback + reconcile-cron endpoints
-  // (all called without a session cookie — see app/api/sync/route.ts,
+  // cron endpoint, the Meta Lead Ads webhook + backfill cron, and the SMS
+  // provider callback + reconcile-cron endpoints (all called without a
+  // session cookie — see app/api/sync/route.ts, app/api/meta/**/route.ts,
   // app/api/sms/callback/*/route.ts, app/api/sms/reconcile/route.ts).
+  // Each enforces its own signature/secret check.
   matcher: [
-    "/((?!login|api/sync|api/sms/callback|api/sms/reconcile|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|api/sync|api/meta|api/sms/callback|api/sms/reconcile|_next/static|_next/image|favicon.ico).*)",
   ],
 };
