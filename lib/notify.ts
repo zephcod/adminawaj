@@ -1,5 +1,10 @@
 import { Resend } from "resend";
-import { telegramImport, telegramMetaLeads, telegramNewContact } from "./telegram";
+import {
+  telegramImport,
+  telegramMetaLeads,
+  telegramNewContact,
+  telegramNewLead,
+} from "./telegram";
 
 /**
  * Internal notifications — the single fan-out point for the team.
@@ -118,6 +123,63 @@ async function emailNewContact(c: NewContactInfo): Promise<void> {
     });
   } catch (e) {
     console.error("[notify] new-contact email failed:", e);
+  }
+}
+
+export interface NewLeadInfo {
+  name: string;
+  /** Omitted for phone-only leads, whose address is a synthesized placeholder. */
+  email?: string;
+  phone?: string;
+  /** The lead's own company, as stored on their contact record. */
+  company?: string;
+  /** The Awaj client whose Page the lead came from — a different thing. */
+  clientCompany?: string;
+  formName?: string;
+  /** Pipeline lead id, for a deep link straight to the card. */
+  leadId: string;
+}
+
+/**
+ * One Meta lead, as it lands. Used by the webhook path only — the poll
+ * imports in batches and sends notifyMetaLeads() as a single digest
+ * instead, so the two never double-notify for the same lead.
+ */
+export async function notifyNewLead(l: NewLeadInfo): Promise<void> {
+  await Promise.all([emailNewLead(l), telegramNewLead(l)]);
+}
+
+async function emailNewLead(l: NewLeadInfo): Promise<void> {
+  const to = recipients();
+  if (to.length === 0) return;
+
+  const rows = [
+    row("Name", esc(l.name)),
+    row("Phone", esc(l.phone || "—")),
+    row("Email", esc(l.email || "—")),
+    l.company ? row("Company", esc(l.company)) : "",
+    l.formName ? row("Form", esc(l.formName)) : "",
+    // Only when it adds something — the contact's company falls back to the
+    // client's name, and repeating it as "Client" would be noise.
+    l.clientCompany && l.clientCompany !== l.company
+      ? row("Client", esc(l.clientCompany))
+      : "",
+    row("Source", "Meta Lead Ads"),
+  ].join("");
+
+  const cta = appUrl()
+    ? `<p style="margin:24px 0 0;"><a href="${appUrl()}/leads/${l.leadId}" style="background:${brand.gold};color:${brand.navy};padding:12px 28px;border-radius:6px;font-size:15px;font-weight:600;font-family:'Space Grotesk','Segoe UI',Arial,sans-serif;text-decoration:none;">Open lead</a></p>`
+    : "";
+
+  try {
+    await resend().emails.send({
+      from: from(),
+      to,
+      subject: `New Meta lead: ${l.name}`,
+      html: shell("New lead from Meta", rows, cta),
+    });
+  } catch (e) {
+    console.error("[notify] new-lead email failed:", e);
   }
 }
 

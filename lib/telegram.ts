@@ -17,7 +17,7 @@
  * throw. Notifications are best-effort — a Telegram outage must not block a
  * contact being created or a lead sync finishing.
  */
-import type { NewContactInfo } from "./notify";
+import type { NewContactInfo, NewLeadInfo } from "./notify";
 
 function configured(): boolean {
   return Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
@@ -78,6 +78,28 @@ export async function telegramNewContact(c: NewContactInfo): Promise<void> {
     link("/contacts", "Open contacts"),
   ];
   await sendTelegram(lines.filter((l) => l !== "").join("\n"));
+}
+
+/**
+ * One Meta lead as it arrives via the webhook — this is the hot-lead ping,
+ * so the phone number leads and the pipeline card is one tap away.
+ */
+export async function telegramNewLead(l: NewLeadInfo): Promise<void> {
+  const lines = [
+    `🔥 <b>New Meta lead</b>`,
+    `<b>${esc(l.name)}</b>`,
+    "",
+    l.phone ? `📞 <b>${esc(l.phone)}</b>` : "",
+    l.email ? `📧 ${esc(l.email)}` : "",
+    l.company ? `🏢 ${esc(l.company)}` : "",
+    l.formName ? `<i>Form: ${esc(l.formName)}</i>` : "",
+    l.clientCompany && l.clientCompany !== l.company
+      ? `<i>Client: ${esc(l.clientCompany)}</i>`
+      : "",
+    "",
+    link(`/leads/${l.leadId}`, "Open lead"),
+  ];
+  await sendTelegram(lines.filter((line) => line !== "").join("\n"));
 }
 
 /** One digest per CSV import, not one per row. */

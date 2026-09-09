@@ -17,7 +17,7 @@ import {
   type MetaLeadField,
   type MetaLeadRow,
 } from "./meta";
-import { notifyMetaLeads } from "./notify";
+import { notifyMetaLeads, notifyNewLead } from "./notify";
 import { normalizePhone } from "./sms/phone";
 
 /**
@@ -168,12 +168,17 @@ export async function ingestLead(
     const phone = e164 ?? mapped.phone ?? null;
     const email = resolveEmail(mapped, e164, lead.id);
     const firstName = mapped.firstName || mapped.company || "Meta lead";
+    // What the lead typed in the form, falling back to the client they came
+    // from. This is the value stored on the contact, so the notification
+    // reports exactly what the CRM holds.
+    const contactCompany =
+      mapped.company ?? ctx.company?.sourceCompany ?? ctx.company?.name ?? null;
 
     const contactId = await upsertContact({
       email,
       firstName,
       lastName: mapped.lastName ?? null,
-      company: mapped.company ?? ctx.company?.sourceCompany ?? ctx.company?.name ?? null,
+      company: contactCompany,
       phone,
       jobTitle: mapped.jobTitle ?? null,
       formName: ctx.formName,
@@ -194,6 +199,26 @@ export async function ingestLead(
       state: "imported",
       error: null,
     });
+
+    // Per-lead ping, webhook only: this path handles one lead at a time and
+    // is the whole point of real-time delivery. The poll imports in batches
+    // and sends a single notifyMetaLeads() digest instead, so neither path
+    // notifies twice for the same lead. Errors are caught here rather than
+    // by the enclosing try — a failed notification must not mark a lead
+    // that was already written as failed.
+    if (ctx.deliveredBy === "webhook") {
+      await notifyNewLead({
+        name: [firstName, mapped.lastName].filter(Boolean).join(" "),
+        // Phone-only leads carry a synthesized address — omit it entirely.
+        email: isPlaceholderEmail(email) ? undefined : email,
+        phone: phone ?? undefined,
+        company: contactCompany ?? undefined,
+        clientCompany: ctx.company?.name,
+        formName: ctx.formName,
+        leadId,
+      }).catch((e) => console.error("[meta-leads] lead notification failed", lead.id, e));
+    }
+
     return "imported";
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
