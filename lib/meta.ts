@@ -308,6 +308,69 @@ export async function fetchLead(
   return metaGetOne<MetaLeadRow>(`${BASE()}/${leadgenId}?${params}`);
 }
 
+// ── Conversions API (outbound) ──────────────────────────────
+//
+// The only write this client makes; everything above is GET-side. Events go
+// to a dataset (pixel) rather than an ad account, and are matched by Meta's
+// own `lead_id` — no hashed PII is sent or needed.
+
+export interface CapiEvent {
+  event_name: string;
+  /** Unix seconds. */
+  event_time: number;
+  action_source: "system_generated";
+  /** Dedup key: Meta collapses repeats of the same event_name + event_id. */
+  event_id: string;
+  user_data: {
+    /** Meta's leadgen id, as a number — a string is rejected. */
+    lead_id: number;
+  };
+  custom_data?: {
+    value: number;
+    currency: string;
+  };
+}
+
+export interface CapiResult {
+  eventsReceived: number;
+  /** Non-fatal warnings Meta returns alongside a 200. */
+  messages: string[];
+}
+
+/**
+ * Post CRM conversion events to a dataset. Throws on a Graph error so the
+ * caller can record the failure — see lib/meta-capi.ts, which is the only
+ * caller and never lets the throw escape to a server action.
+ */
+export async function postCapiEvents(
+  datasetId: string,
+  events: CapiEvent[],
+  testEventCode?: string
+): Promise<CapiResult> {
+  const token = env.metaAccessToken();
+  const body = new URLSearchParams({
+    data: JSON.stringify(events),
+    access_token: token,
+  });
+  if (testEventCode) body.set("test_event_code", testEventCode);
+  withProof(body, token);
+
+  const res = await fetch(`${BASE()}/${datasetId}/events`, {
+    method: "POST",
+    body,
+    cache: "no-store",
+  });
+  const json = await res.json();
+  if (!res.ok || json.error) {
+    const msg = json.error?.message ?? `HTTP ${res.status}`;
+    throw new Error(`Meta CAPI error: ${msg}`);
+  }
+  return {
+    eventsReceived: Number(json.events_received) || 0,
+    messages: Array.isArray(json.messages) ? json.messages.map(String) : [],
+  };
+}
+
 /** Count ads per campaign across the ad account. */
 export async function fetchAdCounts(
   adAccountId: string

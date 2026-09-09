@@ -44,6 +44,9 @@ export const COLLECTIONS = {
   // Raw ingest log keyed by Meta's leadgen_id; the Contact/Lead it produced
   // live in the "contacts"/"leads" collections above.
   metaLeads: "meta_leads",
+  // Outbound counterpart: CRM outcomes reported back to Meta's Conversions
+  // API, one row per (lead, event) so a send is never repeated blindly.
+  metaCapiEvents: "meta_capi_events",
 } as const;
 
 let _db: Databases | null = null;

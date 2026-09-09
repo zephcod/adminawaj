@@ -25,6 +25,7 @@ import {
   type IssueStatus,
 } from "@/lib/domain";
 import { normalizeAdAccountId } from "@/lib/meta";
+import { reportLeadStage } from "@/lib/meta-capi";
 import { syncMetaLeads, type MetaLeadSyncResult } from "@/lib/meta-leads";
 import { notifyImport, notifyNewContact } from "@/lib/notify";
 import { resendClient } from "@/lib/send";
@@ -92,6 +93,10 @@ export async function moveLeadStage(leadId: string, stage: LeadStage) {
     occurredAt: new Date().toISOString(),
   });
 
+  // Report the outcome to Meta. Never throws — PipelineBoard calls this
+  // behind an optimistic update that a rejection would roll back.
+  await reportLeadStage(leadId, stage);
+
   revalidateAll();
   revalidatePath(`/leads/${leadId}`);
 }
@@ -106,10 +111,19 @@ export async function updateFollowUp(leadId: string, formData: FormData) {
 }
 
 export async function updateLeadValue(leadId: string, formData: FormData) {
-  await db().updateDocument(DB(), COLLECTIONS.leads, leadId, {
-    value: Number(formData.get("value") || 0),
-    currency: String(formData.get("currency") || "ETB"),
-  });
+  const value = Number(formData.get("value") || 0);
+  const currency = String(formData.get("currency") || "ETB");
+  await db().updateDocument(DB(), COLLECTIONS.leads, leadId, { value, currency });
+
+  // A won deal is normally dragged to Won before anyone types the price, so
+  // the Won event went out without a value. Re-send it now carrying one —
+  // same event_id, so Meta treats it as the same conversion. Only for leads
+  // already won: reporting a conversion for an open lead would be wrong.
+  const lead = await db().getDocument(DB(), COLLECTIONS.leads, leadId);
+  if (lead.stage === "won") {
+    await reportLeadStage(leadId, "won", { value, currency });
+  }
+
   revalidateAll();
   revalidatePath(`/leads/${leadId}`);
 }
@@ -149,6 +163,12 @@ export async function markLost(leadId: string, formData: FormData) {
     body: `Marked lost${formData.get("lostReason") ? `: ${formData.get("lostReason")}` : "."}`,
     occurredAt: new Date().toISOString(),
   });
+
+  // A second path to `lost` that bypasses moveLeadStage, so it needs its own
+  // call. Unlike moveLeadStage this has no "already in that stage" guard, so
+  // it can run twice — reportLeadStage dedupes on event_id.
+  await reportLeadStage(leadId, "lost");
+
   revalidateAll();
   revalidatePath(`/leads/${leadId}`);
 }
@@ -320,6 +340,7 @@ export async function saveCompany(formData: FormData): Promise<void> {
     ...(pin ? { pin } : {}),
     metaAdAccountId: adAccount ? normalizeAdAccountId(adAccount) : undefined,
     fbPageId: str(formData, "fbPageId") || undefined,
+    metaDatasetId: str(formData, "metaDatasetId") || undefined,
     accountManager: str(formData, "accountManager") || undefined,
     currency: str(formData, "currency") || "ETB",
     currencyMultiplier: multiplier > 0 ? multiplier : 250,

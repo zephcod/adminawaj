@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { contactName, LEAD_STAGES, money, STAGE_LABELS } from "@/lib/domain";
 import { getActivities, getLead } from "@/lib/data";
+import { getCapiEventsForLead } from "@/lib/meta-capi";
 import {
   addActivity,
   assignOwner,
@@ -36,6 +37,7 @@ export default async function LeadDetailPage({
   const lead = await getLead(id);
   if (!lead) notFound();
   const activities = await getActivities(id);
+  const capiEvents = await getCapiEventsForLead(id);
   const closed = lead.stage === "won" || lead.stage === "lost";
 
   return (
@@ -88,6 +90,14 @@ export default async function LeadDetailPage({
             labels={STAGE_LABELS}
             moveLeadStage={moveLeadStage}
           />
+          {capiEvents.length > 0 && (
+            <p className="mt-2 text-[11px] text-muted">
+              Reported to Meta:{" "}
+              {capiEvents
+                .map((e) => (e.state === "sent" ? e.eventName : `${e.eventName} (${e.state})`))
+                .join(", ")}
+            </p>
+          )}
         </div>
 
         <div>

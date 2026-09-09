@@ -14,6 +14,10 @@ import DeleteCompanyButton from "@/components/DeleteCompanyButton";
 import MetaLeadSync from "@/components/MetaLeadSync";
 import SyncButton from "@/components/SyncButton";
 import {
+  countFailedCapiEvents,
+  getCapiEventsForCompany,
+} from "@/lib/meta-capi";
+import {
   countFailedMetaLeads,
   getMetaLeadsForCompany,
   mapLeadFields,
@@ -57,8 +61,17 @@ export default async function ManageCompanyPage({
   if (!company) notFound();
 
   const { since, until } = rangeToDates(range ?? "30d");
-  const [rows, campaigns, costs, deposits, balance, metaLeads, failedLeads] =
-    await Promise.all([
+  const [
+    rows,
+    campaigns,
+    costs,
+    deposits,
+    balance,
+    metaLeads,
+    failedLeads,
+    capiEvents,
+    failedCapi,
+  ] = await Promise.all([
       getInsights(companyId, since, until),
       getCampaigns(companyId),
       getCosts(companyId), // all dates — costs are managed here regardless of range
@@ -66,6 +79,8 @@ export default async function ManageCompanyPage({
       computeCompanyBalance(companyId),
       company.fbPageId ? getMetaLeadsForCompany(companyId) : [],
       company.fbPageId ? countFailedMetaLeads(companyId) : 0,
+      getCapiEventsForCompany(companyId),
+      countFailedCapiEvents(companyId),
     ]);
   const campaignName = new Map(campaigns.map((c) => [c.metaCampaignId, c.name]));
   const sorted = [...rows].sort(
@@ -131,6 +146,15 @@ export default async function ManageCompanyPage({
               name="fbPageId"
               defaultValue={company.fbPageId ?? ""}
               placeholder="1234567890"
+              className={inputCls}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Conversions API dataset ID</span>
+            <input
+              name="metaDatasetId"
+              defaultValue={company.metaDatasetId ?? ""}
+              placeholder="Events Manager → dataset ID"
               className={inputCls}
             />
           </label>
@@ -352,6 +376,93 @@ export default async function ManageCompanyPage({
                       </tr>
                     );
                   })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* ── Conversions API ── */}
+      <section className="mt-8 rounded-xl border border-edge bg-card shadow-sm">
+        <h2 className="px-4 pt-5 text-lg font-semibold sm:px-6">Conversions API</h2>
+        {!company.metaDatasetId ? (
+          <p className="px-4 pt-1 pb-6 text-xs text-muted sm:px-6">
+            Set a dataset ID above to report CRM outcomes back to Meta. Once set,
+            reaching <span className="font-medium">Qualified</span>,{" "}
+            <span className="font-medium">Won</span> or{" "}
+            <span className="font-medium">Lost</span> sends a conversion event so
+            this company&apos;s ad account can optimise for real business instead
+            of raw form fills. Only leads that came from Meta Lead Ads are
+            eligible — they carry the lead ID Meta matches on.
+          </p>
+        ) : (
+          <>
+            <p className="px-4 pt-1 text-xs text-muted sm:px-6">
+              Reporting Qualified / Won / Lost to dataset{" "}
+              <span className="font-mono">{company.metaDatasetId}</span>.{" "}
+              {failedCapi > 0 && (
+                <span className="text-red-600">
+                  {failedCapi} event{failedCapi === 1 ? "" : "s"} failed to send.
+                </span>
+              )}
+            </p>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-edge text-left text-xs tracking-wide text-muted uppercase">
+                    {["Sent", "Event", "Lead", "Value", "Status"].map((h, i) => (
+                      <th key={i} className="px-3 py-3 font-medium first:pl-4 sm:first:pl-6">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {capiEvents.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-muted">
+                        Nothing reported yet — events fire on the next stage change.
+                      </td>
+                    </tr>
+                  )}
+                  {capiEvents.map((ev) => (
+                    <tr key={ev.$id} className="border-b border-edge/60 last:border-0">
+                      <td className="px-3 py-2 pl-4 font-mono text-xs sm:pl-6">
+                        {ev.sentAt.slice(0, 16).replace("T", " ")}
+                      </td>
+                      <td className="px-3 py-2 font-medium">{ev.eventName}</td>
+                      <td className="px-3 py-2">
+                        <Link
+                          href={`/leads/${ev.leadId}`}
+                          className="text-amber hover:underline"
+                        >
+                          View lead
+                        </Link>
+                      </td>
+                      <td className="px-3 py-2">
+                        {ev.value ? money(ev.value, ev.currency || company.currency) : "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        {ev.state === "sent" ? (
+                          <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] text-green-600">
+                            sent
+                          </span>
+                        ) : (
+                          <span
+                            title={ev.error}
+                            className={`rounded-full px-2 py-0.5 text-[10px] ${
+                              ev.state === "failed"
+                                ? "bg-red-500/15 text-red-600"
+                                : "bg-fg/10 text-muted"
+                            }`}
+                          >
+                            {ev.state}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

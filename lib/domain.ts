@@ -123,6 +123,13 @@ export interface Company {
   metaAdAccountId?: string;
   /** Facebook Page ID this company's ads run under. */
   fbPageId?: string;
+  /**
+   * Conversions API dataset (pixel) id that CRM outcomes are reported to.
+   * Distinct from metaAdAccountId: several companies can share one ad
+   * account, so the dataset is set per company rather than derived. Unset
+   * means this company reports nothing to Meta.
+   */
+  metaDatasetId?: string;
   /** Matches the `company` attribute on leadgen contacts. */
   sourceCompany?: string;
   /** Shown in the client report footer: "Prepared by {accountManager} · Awaj ET". */
@@ -280,6 +287,45 @@ export interface MetaLead {
   state: MetaLeadState;
   error?: string;
   deliveredBy: MetaLeadDelivery;
+}
+
+// ── Meta Conversions API (outbound) ─────────────────────────
+// The other half of the Lead Ads loop: Meta tells us a form was filled in,
+// and these events tell Meta what the lead turned out to be worth, so ad
+// accounts can optimise for Conversion Leads instead of raw form fills.
+
+/**
+ * Pipeline stage → Meta event name. The single source of truth for what
+ * gets reported; a stage absent from this map sends nothing, so widening
+ * the mapping later is a one-line change.
+ */
+export const STAGE_EVENTS: Partial<Record<LeadStage, string>> = {
+  qualified: "Qualified",
+  won: "Won",
+  lost: "Disqualified",
+};
+
+export type MetaCapiState = "sent" | "skipped" | "failed";
+
+export interface MetaCapiEvent {
+  $id: string;
+  $createdAt: string;
+  $updatedAt: string;
+  /** `<leadId>:<eventName>` — Meta's dedup key, uniquely indexed. */
+  eventId: string;
+  leadId: string;
+  /** Meta's lead_id, the match key that makes hashing unnecessary. */
+  leadgenId: string;
+  companyId?: string;
+  datasetId: string;
+  eventName: string;
+  value?: number;
+  currency?: string;
+  /** Incremented when a Won event is re-sent carrying the deal value. */
+  attempts: number;
+  state: MetaCapiState;
+  error?: string;
+  sentAt: string;
 }
 
 /** Inclusive date range presets for the Manage-company daily data table. */

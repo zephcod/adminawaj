@@ -12,7 +12,8 @@
     "db:setup-deposits": "tsx scripts/setup-deposits-db.ts",
     "db:update-costs-parent-group": "tsx scripts/update-costs-parent-group.ts",
     "db:setup-sms": "tsx scripts/setup-sms-db.ts",
-    "db:setup-meta-leads": "tsx scripts/setup-meta-leads-db.ts"
+    "db:setup-meta-leads": "tsx scripts/setup-meta-leads-db.ts",
+    "db:setup-meta-capi": "tsx scripts/setup-meta-capi-db.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.14",

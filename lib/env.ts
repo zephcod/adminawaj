@@ -44,6 +44,14 @@ export const env = {
   metaWebhookVerifyToken: () => process.env.META_WEBHOOK_VERIFY_TOKEN || undefined,
   /** Kill switch. Opt-out rather than opt-in — set to "false" to stop ingesting. */
   metaLeadsEnabled: () => process.env.META_LEADS_ENABLED !== "false",
+  // ── Meta Conversions API (outbound) ──
+  // Opt-IN, unlike metaLeadsEnabled above: these events feed real ad
+  // optimisation and are not retractable, so reporting stays off until
+  // switched on deliberately. Same shape as smsEnabled/smsDryRun.
+  metaCapiEnabled: () => process.env.META_CAPI_ENABLED === "true",
+  metaCapiDryRun: () => process.env.META_CAPI_DRY_RUN === "true",
+  /** Routes events to Events Manager's Test Events feed instead of production. */
+  metaCapiTestEventCode: () => process.env.META_CAPI_TEST_EVENT_CODE || undefined,
   // ── SMS (AfroMessage) ──
   // Note: AFROMESSAGE_TOKEN is deliberately NOT exposed here — lib/sms/client.ts
   // reads it directly via process.env so a missing token degrades to a
