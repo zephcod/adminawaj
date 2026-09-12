@@ -8,6 +8,7 @@ type Row = {
   lastName?: string;
   company?: string;
   phone?: string;
+  jobTitle?: string;
 };
 
 /** Minimal CSV parser handling quoted fields. */
@@ -64,6 +65,11 @@ const HEADER_ALIASES: Record<string, keyof Row> = {
   phone: "phone",
   "phone number": "phone",
   mobile: "phone",
+  jobtitle: "jobTitle",
+  "job title": "jobTitle",
+  title: "jobTitle",
+  position: "jobTitle",
+  role: "jobTitle",
 };
 
 export default function ImportContacts({

@@ -68,7 +68,7 @@ export default function ContactsTable({
       if (activeTags.length && !activeTags.every((t) => c.tags.includes(t)))
         return false;
       if (!needle) return true;
-      return [c.name, c.email, c.company, c.phone, ...c.tags]
+      return [c.name, c.email, c.company, c.jobTitle, c.phone, ...c.tags]
         .join(" ")
         .toLowerCase()
         .includes(needle);
@@ -149,7 +149,7 @@ export default function ContactsTable({
       <table className="w-full min-w-[920px] text-left text-sm">
         <thead>
           <tr className="border-b-2 border-edge">
-            {["Name", "Email", "Company", "Phone", "Tags", "Source", "Status", ""].map(
+            {["Name", "Email", "Company", "Job title", "Phone", "Tags", "Source", "Status", ""].map(
               (h) => (
                 <th
                   key={h}
@@ -167,6 +167,7 @@ export default function ContactsTable({
               <td className="px-4 py-3 font-medium">{c.name}</td>
               <td className="px-4 py-3 text-muted">{c.email}</td>
               <td className="px-4 py-3">{c.company || "—"}</td>
+              <td className="px-4 py-3 text-muted">{c.jobTitle || "—"}</td>
               <td className="px-4 py-3 font-mono text-xs">{c.phone || "—"}</td>
               <td className="px-4 py-3">
                 <div className="flex max-w-64 flex-wrap items-center gap-1">
@@ -220,7 +221,7 @@ export default function ContactsTable({
           ))}
           {filtered.length === 0 && (
             <tr>
-              <td colSpan={8} className="px-4 py-10 text-center text-muted">
+              <td colSpan={9} className="px-4 py-10 text-center text-muted">
                 No contacts match.
               </td>
             </tr>

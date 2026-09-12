@@ -265,7 +265,14 @@ export async function createContact(formData: FormData) {
 
 /** Import contacts from parsed CSV rows. Skips rows whose email already exists. */
 export async function importContacts(
-  rows: { email: string; firstName: string; lastName?: string; company?: string; phone?: string }[]
+  rows: {
+    email: string;
+    firstName: string;
+    lastName?: string;
+    company?: string;
+    phone?: string;
+    jobTitle?: string;
+  }[]
 ): Promise<{ imported: number; skipped: number }> {
   const { Query } = await import("node-appwrite");
   let imported = 0;
@@ -291,6 +298,7 @@ export async function importContacts(
       lastName: row.lastName?.trim() || null,
       company: row.company?.trim() || null,
       phone: row.phone?.trim() || null,
+      jobTitle: row.jobTitle?.trim() || null,
       status: "active",
       source: "import",
       tags: [],
