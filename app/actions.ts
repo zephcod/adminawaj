@@ -114,15 +114,10 @@ export async function updateLeadValue(leadId: string, formData: FormData) {
   const value = Number(formData.get("value") || 0);
   const currency = String(formData.get("currency") || "ETB");
   await db().updateDocument(DB(), COLLECTIONS.leads, leadId, { value, currency });
-
-  // A won deal is normally dragged to Won before anyone types the price, so
-  // the Won event went out without a value. Re-send it now carrying one —
-  // same event_id, so Meta treats it as the same conversion. Only for leads
-  // already won: reporting a conversion for an open lead would be wrong.
-  const lead = await db().getDocument(DB(), COLLECTIONS.leads, leadId);
-  if (lead.stage === "won") {
-    await reportLeadStage(leadId, "won", { value, currency });
-  }
+  // No Conversions API re-send here. The Won event is sent once, at the
+  // stage change, carrying the price only if it was already saved: Meta keeps
+  // the first event per event_id and has no way to update it, so a second
+  // send with the value would simply be discarded.
 
   revalidateAll();
   revalidatePath(`/leads/${leadId}`);

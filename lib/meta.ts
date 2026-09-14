@@ -314,20 +314,35 @@ export async function fetchLead(
 // to a dataset (pixel) rather than an ad account, and are matched by Meta's
 // own `lead_id` — no hashed PII is sent or needed.
 
+/** Meta lead ids are 15–17 digit numbers (Conversions API for CRM spec). */
+export const META_LEAD_ID_RE = /^\d{15,17}$/;
+
+/**
+ * One event in Meta's Conversions API for CRM shape. Every field here is
+ * required by that spec except `value` / `currency`.
+ */
 export interface CapiEvent {
+  /** Free-form CRM stage name. */
   event_name: string;
-  /** Unix seconds. */
+  /** Unix seconds; at most 7 days old, and after the lead was generated. */
   event_time: number;
   action_source: "system_generated";
-  /** Dedup key: Meta collapses repeats of the same event_name + event_id. */
+  /** Dedup key: Meta keeps the first event per event_name + event_id for 48h. */
   event_id: string;
   user_data: {
-    /** Meta's leadgen id, as a number — a string is rejected. */
-    lead_id: number;
+    /**
+     * Meta's leadgen id as a DIGIT STRING. 17-digit ids exceed
+     * Number.MAX_SAFE_INTEGER, so `Number(id)` silently rounds to a different
+     * lead. serializeCapiEvents writes it into the JSON as an unquoted number.
+     */
+    lead_id: string;
   };
-  custom_data?: {
-    value: number;
-    currency: string;
+  custom_data: {
+    event_source: "crm";
+    /** Name of the CRM the events come from. */
+    lead_event_source: string;
+    value?: number;
+    currency?: string;
   };
 }
 
@@ -335,6 +350,25 @@ export interface CapiResult {
   eventsReceived: number;
   /** Non-fatal warnings Meta returns alongside a 200. */
   messages: string[];
+}
+
+/**
+ * JSON for the `data` param, with `lead_id` as an unquoted number — the
+ * documented shape (`"lead_id": 1234567890123456`) — at full precision.
+ *
+ * JSON.stringify quotes the digit string; the replace unquotes exactly the
+ * ids validated below. It cannot touch anything else: inside a JSON string
+ * value every `"` is escaped, so `"lead_id":"` only occurs as a real key.
+ */
+export function serializeCapiEvents(events: CapiEvent[]): string {
+  for (const e of events) {
+    if (!META_LEAD_ID_RE.test(e.user_data.lead_id)) {
+      throw new Error(
+        `Invalid lead_id "${e.user_data.lead_id}" — expected a 15–17 digit Meta lead id`
+      );
+    }
+  }
+  return JSON.stringify(events).replace(/"lead_id":"(\d{15,17})"/g, '"lead_id":$1');
 }
 
 /**
@@ -349,7 +383,7 @@ export async function postCapiEvents(
 ): Promise<CapiResult> {
   const token = env.metaAccessToken();
   const body = new URLSearchParams({
-    data: JSON.stringify(events),
+    data: serializeCapiEvents(events),
     access_token: token,
   });
   if (testEventCode) body.set("test_event_code", testEventCode);

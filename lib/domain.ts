@@ -295,15 +295,24 @@ export interface MetaLead {
 // accounts can optimise for Conversion Leads instead of raw form fills.
 
 /**
- * Pipeline stage → Meta event name. The single source of truth for what
- * gets reported; a stage absent from this map sends nothing, so widening
- * the mapping later is a one-line change.
+ * Pipeline stage → Meta event name. Meta's CRM spec asks for every stage as
+ * it happens, so all are mapped except `new`: the raw lead event is sent once
+ * at import (LEAD_EVENT), and moving a lead back to New must not report a
+ * second one.
  */
 export const STAGE_EVENTS: Partial<Record<LeadStage, string>> = {
+  contacted: "Contacted",
   qualified: "Qualified",
+  proposal: "Proposal",
   won: "Won",
   lost: "Disqualified",
 };
+
+/** The raw-lead stage, sent when a Meta lead is imported. */
+export const LEAD_EVENT = "Lead";
+
+/** `custom_data.lead_event_source` — the CRM name Meta shows for these events. */
+export const LEAD_EVENT_SOURCE = "Awaj CRM";
 
 export type MetaCapiState = "sent" | "skipped" | "failed";
 
@@ -311,7 +320,11 @@ export interface MetaCapiEvent {
   $id: string;
   $createdAt: string;
   $updatedAt: string;
-  /** `<leadId>:<eventName>` — Meta's dedup key, uniquely indexed. */
+  /**
+   * Meta's dedup key, uniquely indexed: `<leadId>:<eventName>:crm` for stage
+   * events, `<leadgenId>:Lead:crm` for the raw lead. Rows without the `:crm`
+   * suffix predate the CRM-spec fix and are marked superseded by the backfill.
+   */
   eventId: string;
   leadId: string;
   /** Meta's lead_id, the match key that makes hashing unnecessary. */

@@ -17,6 +17,7 @@ import {
   type MetaLeadField,
   type MetaLeadRow,
 } from "./meta";
+import { reportLeadCreated } from "./meta-capi";
 import { notifyMetaLeads, notifyNewLead } from "./notify";
 import { normalizePhone } from "./sms/phone";
 
@@ -218,6 +219,16 @@ export async function ingestLead(
         leadId,
       }).catch((e) => console.error("[meta-leads] lead notification failed", lead.id, e));
     }
+
+    // Raw lead event: Meta's CRM spec asks for every stage, starting with the
+    // lead itself — one per Meta lead, for poll and webhook imports alike.
+    // reportLeadCreated never throws, so it can't mark this lead failed.
+    await reportLeadCreated({
+      leadId,
+      leadgenId: lead.id,
+      companyId: ctx.company?.$id,
+      generatedAt: lead.created_time,
+    });
 
     return "imported";
   } catch (e) {
