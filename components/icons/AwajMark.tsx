@@ -4,9 +4,10 @@ import * as React from "react";
  * The Awaj ET gradient mark, loaded as a direct static-file `<img>` rather
  * than inlined SVG/JSX.
  *
- * Why not inline JSX: Sidebar and MobileNav both render the brand mark at
- * once (only one is hidden via CSS `display:none` per breakpoint, the other
- * still exists in the DOM). Two copies of the same gradient `id`s
+ * Why not inline JSX: NavShell renders the brand mark in the mobile drawer
+ * header AND the desktop sidebar at once (only one is hidden via CSS
+ * `display:none` per breakpoint, the other still exists in the DOM). Two
+ * copies of the same gradient `id`s
  * (`awajmark-a` etc.) would then be live in the document simultaneously.
  * Browsers resolve `url(#id)` / `xlink:href` references to the *first*
  * matching id in the whole document, so if that first copy sits inside the

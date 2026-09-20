@@ -1,13 +1,23 @@
-export const NAV = [
-  { href: "/", label: "Dashboard", code: "01" },
-  { href: "/pipeline", label: "Pipeline", code: "02" },
-  { href: "/contacts", label: "Contacts", code: "03" },
-  { href: "/companies", label: "Companies", code: "04" },
-  { href: "/campaigns", label: "Campaigns", code: "05" },
-  { href: "/send", label: "Email", code: "06" },
-  { href: "/sms", label: "SMS", code: "07" },
-  { href: "/issues", label: "Issues", code: "08" },
-] as const;
+import type { NavIconKey } from "./NavShell";
+
+export interface NavItem {
+  href: string;
+  label: string;
+  /** Plain string key — NavShell's NAV_ICONS map resolves it to a component,
+   *  since icon components can't cross the Server → Client boundary. */
+  icon: NavIconKey;
+}
+
+export const NAV: readonly NavItem[] = [
+  { href: "/", label: "Dashboard", icon: "dashboard" },
+  { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
+  { href: "/contacts", label: "Contacts", icon: "contacts" },
+  { href: "/companies", label: "Companies", icon: "companies" },
+  { href: "/campaigns", label: "Campaigns", icon: "campaigns" },
+  { href: "/send", label: "Email", icon: "email" },
+  { href: "/sms", label: "SMS", icon: "sms" },
+  { href: "/issues", label: "Issues", icon: "issues" },
+];
 
 export function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);

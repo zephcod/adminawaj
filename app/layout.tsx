@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
-import MobileNav from "@/components/MobileNav";
-import Sidebar from "@/components/Sidebar";
+import { NavShell } from "@/components/NavShell";
 import { ThemeScript } from "@/components/ThemeScript";
 import "./globals.css";
 
@@ -37,13 +36,9 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrains.variable} antialiased`}
       >
-        <MobileNav />
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="min-w-0 flex-1 px-4 py-6 md:px-8 lg:px-12 lg:py-8">
-            {children}
-          </main>
-        </div>
+        <NavShell subtitle="Admin Control" homeHref="/">
+          {children}
+        </NavShell>
       </body>
     </html>
   );
